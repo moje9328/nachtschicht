@@ -20,7 +20,7 @@ const Speicher = (() => {
     beste: { endlos: leer(), containerkai: leer(), neonviertel: leer(), nachthafen: leer() },
     alt: null,
     aufgaben: { aktiv: [0, 1, 2], naechste: 3, sterne: 0 },
-    gesamt: { strecke: 0, laeufe: 0, knapp: 0, felder: 0 },
+    gesamt: { strecke: 0, laeufe: 0, knapp: 0, felder: 0, ueberholt: 0 },
     lack: 'nacht', vibration: true,
     tages: { datum: '', punkte: 0, strecke: 0, versuche: 0 },
   });
@@ -69,10 +69,12 @@ const Speicher = (() => {
       daten.coupEinstieg = !!d.coupEinstieg;
       for (const id of MODI) daten.beste[id] = bestwerteAus(d.beste && d.beste[id]);
       const a = d.aufgaben;
-      if (a && Array.isArray(a.aktiv) && a.aktiv.length === 3 && a.aktiv.every(n => Number.isInteger(n) && n >= 0) && Number.isInteger(a.naechste) && a.naechste > Math.max(...a.aktiv)) {
-        daten.aufgaben = { aktiv: a.aktiv.slice(), naechste: a.naechste, sterne: Math.floor(zahl(a.sterne, 0, 1e6, 0)) };
+      if (a && Array.isArray(a.aktiv) && a.aktiv.length === 3 && a.aktiv.every(n => Number.isInteger(n) && n >= 0) && Number.isInteger(a.naechste) && a.aktiv.every(n => n >= 100000 || n < a.naechste)) {
+        const versuche = {};
+        if (a.versuche && typeof a.versuche === 'object') for (const k of Object.keys(a.versuche)) if (/^\d+$/.test(k)) versuche[k] = Math.floor(zahl(a.versuche[k], 0, 1e6, 0));
+        daten.aufgaben = { aktiv: a.aktiv.slice(), naechste: a.naechste, sterne: Math.floor(zahl(a.sterne, 0, 1e6, 0)), versuche, tausch: Math.floor(zahl(a.tausch, 0, 1e6, 0)) };
       }
-      if (d.gesamt) for (const k of ['strecke', 'laeufe', 'knapp', 'felder']) daten.gesamt[k] = zahl(d.gesamt[k], 0, 1e12, 0);
+      if (d.gesamt) for (const k of ['strecke', 'laeufe', 'knapp', 'felder', 'ueberholt']) daten.gesamt[k] = zahl(d.gesamt[k], 0, 1e12, 0);
       if (LACKE.some(l => l.id === d.lack)) daten.lack = d.lack;
       if (typeof d.vibration === 'boolean') daten.vibration = d.vibration;
       if (d.tages && typeof d.tages.datum === 'string' && /^\d{8}$/.test(d.tages.datum)) daten.tages = { datum: d.tages.datum, punkte: Math.floor(zahl(d.tages.punkte, 0, 1e9, 0)), strecke: zahl(d.tages.strecke, 0, 1e7, 0), versuche: Math.floor(zahl(d.tages.versuche, 0, 1e6, 0)) };
@@ -105,14 +107,16 @@ const Speicher = (() => {
       sichere();
       return neu;
     },
-    aufgabenStand: () => ({ aktiv: daten.aufgaben.aktiv.slice(), naechste: daten.aufgaben.naechste, sterne: daten.aufgaben.sterne }),
+    aufgabenStand: () => ({ aktiv: daten.aufgaben.aktiv.slice(), naechste: daten.aufgaben.naechste, sterne: daten.aufgaben.sterne, versuche: { ...(daten.aufgaben.versuche || {}) }, tausch: daten.aufgaben.tausch || 0 }),
     gesamt: () => ({ ...daten.gesamt }),
     // Ende eines Laufs: Aufgabenstand übernehmen und Gesamtwerte erhöhen
     sichereLauf(stand, lauf) {
-      daten.aufgaben = { aktiv: stand.aktiv.slice(), naechste: stand.naechste, sterne: stand.sterne };
       daten.gesamt.strecke += lauf.strecke || 0; daten.gesamt.laeufe++;
-      daten.gesamt.knapp += lauf.knapp || 0; daten.gesamt.felder += lauf.felder || 0;
+      daten.gesamt.knapp += lauf.knapp || 0; daten.gesamt.felder += lauf.felder || 0; daten.gesamt.ueberholt += lauf.ueberholt || 0;
+      const getauscht = tauscheFestgefahrene(stand, daten.gesamt);
+      daten.aufgaben = { aktiv: stand.aktiv.slice(), naechste: stand.naechste, sterne: stand.sterne, versuche: { ...(stand.versuche || {}) }, tausch: stand.tausch || 0 };
       sichere();
+      return getauscht;
     },
     // Tagesfahrt: Bestwert nur für das heutige Datum (YYYYMMDD)
     tagesBeste: datum => (daten.tages.datum === datum ? { ...daten.tages } : { datum, punkte: 0, strecke: 0, versuche: 0 }),

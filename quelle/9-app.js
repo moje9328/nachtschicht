@@ -228,7 +228,7 @@
   }
   function zeigeAufgaben() {
     const st = Speicher.aufgabenStand(), ges = Speicher.gesamt();
-    $('startSterne').textContent = `★ ${st.sterne}`;
+    $('startSterne').textContent = `★ ${st.sterne} · ${rangVon(st.sterne).toUpperCase()}`;
     const naechster = LACKE.find(l => l.sterne > st.sterne);
     $('startStufe').textContent = naechster ? `NOCH ${naechster.sterne - st.sterne} ★ BIS „${naechster.name.toUpperCase()}“` : 'ALLE LACKE FREI';
     const ul = $('startAufgaben'); ul.textContent = '';
@@ -579,18 +579,22 @@
     g.append(gdt, gdd); dl.appendChild(g);
     // Aufgaben: letzte Prüfung, dann Lauf sichern
     const vorherSterne = lauf.aufgaben ? Speicher.aufgabenStand().sterne : 0;
-    if (lauf.aufgaben) { pruefeLaufAufgaben(); Speicher.sichereLauf(lauf.aufgaben, laufWerte(F)); }
+    let getauscht = [];
+    if (lauf.aufgaben) { pruefeLaufAufgaben(); getauscht = Speicher.sichereLauf(lauf.aufgaben, laufWerte(F)) || []; }
     const ul = $('ergebnisAufgaben'); ul.textContent = '';
     if (lauf.aufgaben) {
       const ges = Speicher.gesamt();
       for (const a of lauf.erfuellt) ul.appendChild(aufgabeZeile(a, {}, ges, true));
       for (const n of lauf.aufgaben.aktiv) ul.appendChild(aufgabeZeile(AUFGABEN.nr(n), {}, ges, false));
     }
-    const neuerLack = LACKE.find(l => l.sterne > vorherSterne && l.sterne <= (lauf.aufgaben ? lauf.aufgaben.sterne : 0));
+    const nachherSterne = lauf.aufgaben ? lauf.aufgaben.sterne : 0;
+    const neuerLack = LACKE.find(l => l.sterne > vorherSterne && l.sterne <= nachherSterne);
+    const neuerRang = lauf.aufgaben && rangVon(nachherSterne) !== rangVon(vorherSterne) ? rangVon(nachherSterne) : null;
     $('ergebnisRekord').textContent = endlos ? (alterRekord.strecke > 0 && F.sp.d < alterRekord.strecke
       ? (alterRekord.strecke - F.sp.d < 1 ? 'Genau so weit wie dein Rekord!' : `Noch ${Math.round(alterRekord.strecke - F.sp.d).toLocaleString('de-DE')} m bis zu deinem Rekord!`)
       : alterRekord.strecke > 0 ? `${Math.round(F.sp.d - alterRekord.strecke).toLocaleString('de-DE')} m weiter als dein alter Rekord!` : 'Dein erster Rekord steht!')
-      + (neuerLack ? ` Neue Lackierung frei: „${neuerLack.name}“ (Garage).` : '') : '';
+      + (neuerLack ? ` Neue Lackierung frei: „${neuerLack.name}“ (Garage).` : '') + (neuerRang ? ` Neuer Rang: ${neuerRang}!` : '')
+      + (getauscht.length ? ` Neue Aufgabe statt „${getauscht[0].alt.text}“.` : '') : '';
     $('ergebnisPunkte').textContent = zahl(gesamt);
     if (lauf.tages) {
       const neuTag = Speicher.trageTagEin(heute(), gesamt, F.sp.d), t = Speicher.tagesBeste(heute());

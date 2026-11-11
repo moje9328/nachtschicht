@@ -35,12 +35,26 @@ const AUFGABEN = (() => {
   ];
   // Danach: wachsende Ziele, abwechselnd
   function nr(n) {
+    // Ersatzaufgaben (an das Können angepasst): id = 100000 + Typ · 10000 + Wert
+    if (n >= 100000) {
+      const t = Math.floor((n - 100000) / 10000), v = (n - 100000) % 10000;
+      const e = [
+        () => G('strecke', v * 1000, `Fahre insgesamt ${v.toLocaleString('de-DE')} km`),
+        () => L('knapp', v, `${v}× knapp vorbei in einem Lauf`),
+        () => L('felder', v, `Nimm ${v} Boostfelder in einem Lauf`),
+        () => L('ueberholt', v * 10, `Überhole ${v * 10} Autos in einem Lauf`),
+      ][t % 4]();
+      return { id: n, ersatz: true, ...e };
+    }
     if (n < liste.length) return { id: n, ...liste[n] };
     const k = n - liste.length, stufe = Math.floor(k / 4) + 1;
+    // langsam wachsend, damit keine Aufgabe dauerhaft unschaffbar wird
+    // Lauf-Aufgaben haben eine Obergrenze (dort wiederholen sie sich), Gesamt-Aufgaben wachsen weiter
+    const km = Math.min(10, 6 + stufe * 0.5), pkt = Math.min(120000, 40000 + stufe * 10000), kn = Math.min(30, 10 + stufe * 2);
     const vorlagen = [
-      () => L('strecke', 6000 + stufe * 1000, `Fahre ${(6 + stufe).toLocaleString('de-DE')} km in einem Lauf`),
-      () => L('punkte', 40000 + stufe * 20000, `Schaffe ${(40000 + stufe * 20000).toLocaleString('de-DE')} Punkte in einem Lauf`),
-      () => L('knapp', 10 + stufe * 3, `${10 + stufe * 3}× knapp vorbei in einem Lauf`),
+      () => L('strecke', km * 1000, `Fahre ${km.toLocaleString('de-DE')} km in einem Lauf`),
+      () => L('punkte', pkt, `Schaffe ${pkt.toLocaleString('de-DE')} Punkte in einem Lauf`),
+      () => L('knapp', kn, `${kn}× knapp vorbei in einem Lauf`),
       () => G('strecke', 50000 + stufe * 50000, `Fahre insgesamt ${50 + stufe * 50} km`),
     ];
     return { id: n, ...vorlagen[k % 4]() };
@@ -56,7 +70,49 @@ const LACKE = [
   { id: 'gift', name: 'Neongrün', sterne: 10, basis: '#173F2A', glanz: '#2E7A4E', dach: '#225C3B', dunkel: '#0C2618', akzent: '#7CFF6B', akzent2: '#24D6CD' },
   { id: 'gold', name: 'Goldrausch', sterne: 14, basis: '#5A4214', glanz: '#A67C22', dach: '#7A5A1A', dunkel: '#33250A', akzent: '#FFD35A', akzent2: '#FF805B' },
   { id: 'chrom', name: 'Chrom-Magenta', sterne: 18, basis: '#4A4F63', glanz: '#8C93AE', dach: '#606780', dunkel: '#2A2D3A', akzent: '#FF4FD8', akzent2: '#BDF4FF' },
+  // Langzeitziele
+  { id: 'mitternacht', name: 'Mitternachtsblau', sterne: 24, basis: '#141B4A', glanz: '#2E3C9E', dach: '#1E2A72', dunkel: '#0A0F2C', akzent: '#7FD8FF', akzent2: '#FFD35A' },
+  { id: 'koralle', name: 'Korallenriff', sterne: 30, basis: '#8A3A3A', glanz: '#E0705E', dach: '#B04E48', dunkel: '#4E1E1E', akzent: '#5FE3EE', akzent2: '#FFF4DC' },
+  { id: 'lava', name: 'Lavarot', sterne: 38, basis: '#5A0E14', glanz: '#B8242E', dach: '#801820', dunkel: '#2E060A', akzent: '#FF9A3D', akzent2: '#FFD35A' },
+  { id: 'aurora', name: 'Polarlicht', sterne: 46, basis: '#123A3E', glanz: '#2A8A84', dach: '#1C5E5E', dunkel: '#08201F', akzent: '#7CFF6B', akzent2: '#C9A7FF' },
+  { id: 'tiefsee', name: 'Tiefseeleuchten', sterne: 56, basis: '#06243A', glanz: '#0F5F8A', dach: '#0A3E5E', dunkel: '#02121E', akzent: '#24D6CD', akzent2: '#FF4FD8' },
+  { id: 'glut', name: 'Neonglut', sterne: 68, basis: '#2A1030', glanz: '#7A2A8A', dach: '#4E1A5A', dunkel: '#150818', akzent: '#FF805B', akzent2: '#FF4FD8' },
+  { id: 'prisma', name: 'Prisma', sterne: 82, basis: '#E8E4F2', glanz: '#FFFFFF', dach: '#C9C2DE', dunkel: '#8E86A8', akzent: '#FF4FD8', akzent2: '#24D6CD' },
+  { id: 'legende', name: 'Hafenlegende', sterne: 100, basis: '#0E0E12', glanz: '#3A3A44', dach: '#22222A', dunkel: '#050507', akzent: '#FFD35A', akzent2: '#FFD35A' },
 ];
+
+// Fahrerränge nach Sternen (Langzeitmotivation)
+const RAENGE = [
+  [0, 'Neuling'], [5, 'Kurierfahrer'], [12, 'Nachtfahrer'], [20, 'Spurwechsel-Profi'], [30, 'Neonpilot'],
+  [45, 'Hafenschreck'], [65, 'Straßenlegende'], [100, 'Nachtschicht-Legende'],
+];
+function rangVon(sterne) { let r = RAENGE[0][1]; for (const [ab, name] of RAENGE) if (sterne >= ab) r = name; return r; }
+
+// Festgefahrene Aufgaben tauschen: Nach `grenze` Läufen ohne Erfolg wird eine Aufgabe durch eine an das
+// bisherige Können angepasste ersetzt (aus den Durchschnittswerten). So stockt der Fortschritt nie lange.
+function tauscheFestgefahrene(stand, gesamt, grenze = 8) {
+  stand.versuche = stand.versuche || {};
+  const getauscht = [];
+  const laeufe = Math.max(1, gesamt.laeufe || 0);
+  for (let i = 0; i < stand.aktiv.length; i++) {
+    const id = stand.aktiv[i];
+    stand.versuche[id] = (stand.versuche[id] || 0) + 1;
+    if (stand.versuche[id] < grenze) continue;
+    const typ = (stand.tausch = (stand.tausch || 0) + 1) % 4;
+    let wert = [
+      Math.ceil((gesamt.strecke || 0) / 1000) + 5,
+      klemme(Math.round((gesamt.knapp || 0) / laeufe * 1.3) + 1, 2, 30),
+      klemme(Math.round((gesamt.felder || 0) / laeufe * 1.3) + 1, 2, 15),
+      klemme(Math.round((gesamt.ueberholt || 0) / laeufe * 1.2 / 10) + 1, 3, 40),
+    ][typ];
+    let neu = 100000 + typ * 10000 + Math.min(9999, wert);
+    while (stand.aktiv.includes(neu)) neu++;
+    getauscht.push({ alt: AUFGABEN.nr(id), neu: AUFGABEN.nr(neu) });
+    delete stand.versuche[id];
+    stand.aktiv[i] = neu;
+  }
+  return getauscht;
+}
 
 // Fortschritt einer Aufgabe aus Lauf-Statistik und Gesamtwerten
 function aufgabeWert(a, lauf, gesamt) {
@@ -72,6 +128,7 @@ function pruefeAufgaben(stand, lauf, gesamt, ausnahmen = new Set()) {
     if (aufgabeWert(a, lauf, gesamt) >= a.ziel) {
       erfuellt.push(a);
       stand.sterne++;
+      if (stand.versuche) delete stand.versuche[a.id];
       stand.aktiv[i] = stand.naechste++;
       ausnahmen.add(stand.aktiv[i]);
     }

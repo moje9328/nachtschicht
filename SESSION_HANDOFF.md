@@ -217,3 +217,26 @@ GitHub-Repo `moje9328/nachtschicht` anlegen, Pages aus main /, pushen; in `~/spi
 - **Vibration** (`navigator.vibrate`, wo vorhanden): 15 ms bei knapp vorbei, 140 ms beim Crash, Muster beim Rekord. Abschaltbar unter „Sound“, gespeichert.
 - **Tests:** Browser Chromium 119/119, WebKit 114/114 (Prüfung „Audio angehalten“ wartet jetzt auf das asynchrone suspend()), Logik 197/197.
 - **Nicht geprüft:** echte Vibration auf einem Gerät (nur abgefangener Aufruf).
+
+## Runde 8 (11.11.2026): Langzeitmotivation abgesichert (Sitzungssimulation)
+
+**Vorgehen:** Echte Spieler konnte ich nicht testen. Stattdessen habe ich ganze Spielsitzungen simuliert, mit derselben Aufgaben- und Sternlogik wie im Spiel:
+- 30 Läufe mit einem Fahrer, der besser wird;
+- 120 Läufe mit einem menschenähnlichen Fahrer.
+
+**Befunde und Änderungen:**
+- Nach ~30 Läufen waren alle 6 Lackierungen frei, danach fehlte ein Langzeitziel. → 8 weitere Lackierungen (bis 100 ★, insgesamt 14) und **Fahrerränge** von „Neuling“ bis „Nachtschicht-Legende“ (`RAENGE`, auf Start und Ergebnis).
+- Ein menschenähnlicher Fahrer blieb nach ~40 Läufen **72 Läufe ohne Stern** hängen: Seine Aufgaben lagen über seinem Können.
+  - Neu: `tauscheFestgefahrene`. Nach 8 erfolglosen Läufen wird eine Aufgabe gegen eine an die eigenen Durchschnittswerte angepasste ersetzt (Gesamtstrecke +5 km, knapp, Boostfelder oder Überholungen etwas über dem Schnitt).
+  - Das Ergebnis meldet „Neue Aufgabe statt …“.
+  - Endlose Lauf-Aufgaben haben Obergrenzen (10 km, 120.000 Punkte, 30× knapp).
+- **Speicher:** `aufgaben.versuche`, `aufgaben.tausch`, `gesamt.ueberholt` (Version 2, fehlende Felder gelten als Standard).
+
+**Messwerte nachher:**
+
+| Sitzung | Messwert |
+|---|---|
+| 30 Läufe (3 Sitzungen) | erster Stern nach 1–2 Läufen, erste Lackierung nach 2–4 Läufen, höchstens 3–4 Läufe ohne Stern oder Rekord |
+| 120 Läufe | höchstens 8 Läufe ohne neuen Stern (vorher 72); 42 ★, Rang „Neonpilot“, 9/14 Lackierungen – Ziele bleiben übrig |
+
+**Tests:** Logik 203/203 (neu: Tausch nach 8 Läufen, angepasster Ersatz, Ränge, Obergrenzen), Browser Chromium 119/119, WebKit 114/114.

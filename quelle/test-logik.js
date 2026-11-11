@@ -537,8 +537,23 @@ abschnitt('Suchtfaktor: Kombo, Rekordlinie, Aufgaben, Lackierungen');
   ok(e3.length >= 1, 'im nächsten Lauf zählen sie');
   const g = AUFGABEN.nr(6);
   ok(g.art === 'gesamt' && pruefeAufgaben({ aktiv: [6, 1, 2], naechste: 30, sterne: 0 }, { strecke: 1000 }, { strecke: 9500 }).length >= 1, 'Gesamt-Aufgaben zählen bisherige Läufe mit');
-  let steigt = true; for (let n = AUFGABEN.anzahlFest; n < AUFGABEN.anzahlFest + 40; n += 4) if (AUFGABEN.nr(n + 4).ziel <= AUFGABEN.nr(n).ziel) steigt = false;
+  let steigt = true; for (let n = AUFGABEN.anzahlFest + 3; n < AUFGABEN.anzahlFest + 400; n += 4) if (AUFGABEN.nr(n + 4).ziel <= AUFGABEN.nr(n).ziel) steigt = false;   // Gesamt-Aufgaben wachsen immer
+  ok(AUFGABEN.nr(AUFGABEN.anzahlFest + 400).ziel <= 10000 && AUFGABEN.nr(AUFGABEN.anzahlFest + 401).ziel <= 120000 && AUFGABEN.nr(AUFGABEN.anzahlFest + 402).ziel <= 30, 'Lauf-Aufgaben haben Obergrenzen (10 km, 120.000 Punkte, 30× knapp) und blockieren nie dauerhaft');
   ok(steigt && AUFGABEN.nr(500).text.length > 5, 'nach der festen Liste geht es endlos mit wachsenden Zielen weiter');
+  {
+    // festgefahrene Aufgaben werden nach 8 Läufen gegen angepasste getauscht
+    const st = { aktiv: [15, 18, 19], naechste: 30, sterne: 20 };
+    const ges = { strecke: 80000, laeufe: 40, knapp: 200, felder: 120, ueberholt: 3000 };
+    let get = [];
+    for (let i = 0; i < 7; i++) get = get.concat(L.tauscheFestgefahrene(st, ges));
+    ok(get.length === 0, 'unter 8 Läufen bleibt die Aufgabe');
+    get = L.tauscheFestgefahrene(st, ges);
+    const neu = st.aktiv.map(n => AUFGABEN.nr(n));
+    ok(get.length === 3 && neu.every(a => a.ersatz) && new Set(st.aktiv).size === 3, `nach 8 erfolglosen Läufen: angepasste Ersatzaufgaben (${neu.map(a => a.text).join(' / ')})`);
+    ok(neu.some(a => a.wert === 'knapp' && a.ziel === Math.round(200 / 40 * 1.3) + 1), 'Ersatz richtet sich nach dem eigenen Durchschnitt');
+  }
+  ok(L.RAENGE.every((r, i) => i === 0 || r[0] > L.RAENGE[i - 1][0]) && L.rangVon(0) === 'Neuling' && L.rangVon(100) === 'Nachtschicht-Legende', 'Fahrerränge steigen mit den Sternen');
+  ok(LACKE.length >= 14 && LACKE[LACKE.length - 1].sterne >= 100, 'Langzeitziele: Lackierungen bis 100 Sterne');
   ok(LACKE[0].sterne === 0 && LACKE.every((l, i) => i === 0 || l.sterne > LACKE[i - 1].sterne) && new Set(LACKE.map(l => l.id)).size === LACKE.length, `${LACKE.length} Lackierungen mit steigender Sternzahl`);
 }
 

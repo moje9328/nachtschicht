@@ -381,7 +381,7 @@
           Grafik.blase(e.polizei ? 'BONK!' : e.art === 'seite' ? 'RATSCH!' : 'KLONK!', e.d, e.x, '#FFD35A', 0.9, 1.2);
           for (let i = 0; i < 10; i++) Grafik.weltPartikel({ art: 'funke', d: e.d, x: e.x, h: 0.6, vh: 2 + Math.random() * 3, g: 9, vd: sp.v * 0.6 + (Math.random() - 0.5) * 6, vx: (Math.random() - 0.5) * 6, dauer: 0.5, groesse: 0.18, farbe: i % 2 ? '#FFD35A' : '#FF9A3D' });
           for (let i = 0; i < 4; i++) Grafik.weltPartikel({ d: e.d, x: e.x + (Math.random() - 0.5), h: 0.8, vh: 1, vd: sp.v * 0.7, dauer: 0.9, groesse: 0.55, wachsen: true, farbe: 'rgba(181, 160, 220, 0.6)' });
-          if (sp.zustand <= 40) zeigeHinweis('zustand', 'Achtung: Der Kombi hält nicht mehr viel aus!', 3, true);
+          if (sp.zustand <= 40 && !lauf.A.einTreffer) zeigeHinweis('zustand', 'Achtung: Der Kombi hält nicht mehr viel aus!', 3, true);
           break;
         }
         case 'beruehrung': Ton.beruehrung(); break;
@@ -402,7 +402,7 @@
             for (let i = 0; i < (bewegungRuhig.matches ? 10 : 30); i++) Grafik.weltPartikel({ art: 'funke', d: sp.d + 8 + Math.random() * 6, x: (Math.random() - 0.5) * 10, h: 3 + Math.random() * 2, vh: 2 + Math.random() * 3, g: 4, vd: sp.v * 0.5, vx: (Math.random() - 0.5) * 3, dauer: 1.6, groesse: 0.3, farbe: ['#24D6CD', '#FFD35A', '#FF4FD8', '#FF9A3D'][i % 4] });
           } else {
             Ton.niederlage();
-            melde(e.grund === 'wrack' ? 'DER KOMBI QUALMT!' : 'GESTELLT!', 2.2, 'gross warn');
+            melde(e.grund === 'crash' ? 'CRASH!' : e.grund === 'wrack' ? 'DER KOMBI QUALMT!' : 'GESTELLT!', 1.3, 'gross warn');
             for (let i = 0; i < 6; i++) Grafik.weltPartikel({ d: sp.d, x: sp.x + (Math.random() - 0.5), h: 1, vh: 1.2, vd: sp.v * 0.5, dauer: 1.6, groesse: 0.7, wachsen: true, farbe: 'rgba(160, 150, 190, 0.7)' });
           }
           break;
@@ -441,8 +441,9 @@
     setzeText('hudRest', anzeigeM > 950 ? `${(anzeigeM / 1000).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km` : `${Math.max(0, Math.round(anzeigeM / 10) * 10)} m`);
     setzeText('hudBeutel', String(ce.beutel));
     setzeBalken('zustandBalken', F.sp.zustand);
+    setzeText('hudTempo', `${Math.round(F.sp.v * 3.6)} km/h`);
     // Verfolgungsdruck nur, wenn er relevant ist
-    const druckSicht = F.w.polizei.length > 0 || F.w.anmeldungen.length > 0 || F.w.druck > 0.5;
+    const druckSicht = !lauf.A.ohneDruck && (F.w.polizei.length > 0 || F.w.anmeldungen.length > 0 || F.w.druck > 0.5);
     if (hudAlt.druckSicht !== druckSicht) { hudAlt.druckSicht = druckSicht; $('druckBalken').classList.toggle('ausgeblendet', !druckSicht); }
         setzeBalken('druckBalken', F.w.druck, F.w.warnung >= 0 ? 'w' : '');
     // Wirkzeit nur während des Effekts (kein Vorrat, kein Bedienelement)
@@ -482,7 +483,7 @@
     grund.className = 'ergebnisgrund' + (geschafft || endlos ? '' : ' schlecht');
     grund.textContent = geschafft
       ? `${lauf.A.name}: Halle 7 erreicht, Tor zu – Feierabend. Zeit: ${w.zeit.toLocaleString('de-DE', { maximumFractionDigits: 1 })} s.`
-      : endlos ? `${km.toLocaleString('de-DE', { maximumFractionDigits: 2 })} km Neon-Endlos. ` + (w.grund === 'wrack' ? 'Der Kombi qualmt – Zustand leer.' : 'Die Streife hat aufgeschlossen.')
+      : endlos ? `Crash nach ${km.toLocaleString('de-DE', { maximumFractionDigits: 2 })} km bei ${Math.round(w.statistik.maxTempo * 3.6)} km/h${w.statistik.polizeiKontakt ? ' – mit einer Streife' : ''}.`
       : w.grund === 'wrack' ? 'Grund: Der Fahrzeugzustand ist leer – der Kombi qualmt und rollt aus.'
       : 'Grund: Der Verfolgungsdruck blieb zu lange voll – die Streife hat aufgeschlossen.';
     const dl = $('ergebnisZahlen'); dl.textContent = '';
@@ -526,9 +527,9 @@
     spiel: 'Nachtschicht: Hafenflucht',
     adresse: 'https://moje9328.github.io/nachtschicht/',
     schluessel: 'pixelhafen.nachtschicht.freunde',
-    stand: st => ({ punkte: Speicher.beste(st).punkte }),
-    stufen: { endlos: 'Neon-Endlos', containerkai: 'Containerkai', neonviertel: 'Neonviertel', nachthafen: 'Nachthafen' },
-    stufe: () => (lauf ? lauf.id : 'endlos'),
+    stand: () => ({ punkte: Speicher.beste('endlos').punkte }),
+    stufen: null,
+    stufe: () => 'endlos',
     beiStufe: () => {},
     einheit: 'Punkte', levelWort: '', wasText: 'deine Bestleistung',
     erklaerung: 'Gezählt wird deine beste Punktzahl im gewählten Modus.',

@@ -286,6 +286,9 @@
   #zustandBalken.tief { --b: linear-gradient(90deg, #FF805B, #FFB35C); }
   #druckBalken { --b: linear-gradient(90deg, #4E8DFF, #FF4FD8); }
   #druckBalken.warnung { border-color: var(--magenta); box-shadow: 0 0 0 2px rgba(255, 79, 216, 0.45); }
+  #tempoFeld { flex: 1 1 0; padding: 1px 8px; }
+  #tempoFeld b { font-size: 11px; }
+  body:not([data-modus="endlos"]) #tempoFeld, body[data-modus="endlos"] #zustandBalken { display: none; }
   #boostWirkung { flex: 0.75 1 0; --b: linear-gradient(90deg, #24D6CD, #FFD35A); border-color: var(--gelb); }
   #boostWirkung[hidden] { display: none; }
   body[data-zustand="coup"] .nurFahrt, body[data-zustand="menue"] #hud { display: none; }
@@ -402,6 +405,7 @@
         </button>
       </div>
       <div class="hudzeile nurFahrt">
+        <div class="anzeige" id="tempoFeld"><small>TEMPO</small><b id="hudTempo">0 km/h</b></div>
         <div class="balken" id="zustandBalken" role="meter" aria-label="Fahrzeugzustand" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i><span>ZUSTAND</span></div>
         <div class="balken ausgeblendet" id="druckBalken" role="meter" aria-label="Verfolgungsdruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><span>DRUCK</span></div>
         <div class="balken" id="boostWirkung" role="timer" aria-label="Boost wirkt noch" hidden><i></i><span>BOOST!</span></div>
@@ -431,12 +435,12 @@
       <p class="marke"><svg aria-hidden="true"><use href="#logo"/></svg>PIXELHAFEN</p>
       <h1 id="fStartTitel">NACHTSCHICHT<small>HAFENFLUCHT</small></h1>
       <canvas id="startTitel" width="640" height="320" aria-hidden="true"></canvas>
-      <p class="unterzeile">Neon-Arcade-Racer: Weiche bei Vollgas dem Verkehr aus!</p>
+      <p class="unterzeile">Endlos-Racer: Fahr, so weit du kommst – ein Kontakt, und es ist vorbei!</p>
       <p class="hinweistext" id="startRekord" style="text-align:center" hidden></p>
       <p class="duell" id="startDuell" hidden></p>
       <div class="knoepfe">
         <button class="btn main" id="spielenKnopf" type="button">Spielen</button>
-        <button class="btn" id="auftragWahlKnopf" type="button">Missionen</button>
+        <button class="btn" id="auftragWahlKnopf" type="button" hidden>Missionen</button>
         <div class="knoepfe zwei" style="margin-top:0">
           <button class="btn klein" id="soundKnopf" type="button">Sound</button>
           <button class="btn klein" id="steuerungKnopf" type="button">Steuerung</button>
@@ -446,7 +450,7 @@
           <a class="btn klein" href="https://moje9328.github.io/spiele/">Zur Pixelhafen-Seite</a>
         </div>
       </div>
-      <p class="hinweistext">„Spielen“ startet sofort Neon-Endlos. Alles ist erfunden: Stadt, Fahrzeuge, Musik. Beutetaschen sind reine Spielpunkte.</p>
+      <p class="hinweistext">Je weiter du kommst, desto schneller und voller wird es. Alles ist erfunden: Stadt, Fahrzeuge, Musik.</p>
     </section>
 
     <section id="fAuftraege" hidden>
@@ -483,15 +487,13 @@
           <li>Finger auf die Steuerfläche legen und seitlich ziehen; das Auto folgt deiner Bewegung, es springt nicht zum Finger.</li>
           <li>Computer: ← → gedrückt halten oder mit der Maus auf der Straße ziehen.</li>
           <li>P oder Esc: Pause. M: Ton.</li></ul></li>
-        <li><h3>Coup (optional bei Missionen)</h3><p>Tippen, Leertaste oder der IMPULS-Knopf, wenn der Zeiger im hellen Feld steht. Danach die fliegenden Beutetaschen im Ring fangen.</p></li>
         <li><h3>Fahrt</h3><ul>
           <li>Weiche dem Verkehr aus – das ist die Hauptaufgabe. In Neon-Endlos wird es mit jedem Kilometer schneller und voller. Verbinde saubere Überholungen zu Serien. Blinkende Autos wechseln gleich die Spur.</li>
           <li>Knapp, aber ohne Berührung vorbei gibt Bonuspunkte – pro Auto einmal.</li>
-          <li>Ein Unfall kostet Zustand, beendet aber nicht gleich den Lauf. Ist der Zustand leer, ist Schluss.</li>
+          <li>Berührst du ein anderes Auto – auch eine Streife –, ist die Fahrt vorbei. Je weiter du kommst, desto schneller und dichter wird der Verkehr.</li>
           <li><b>Fahre über die leuchtenden Pfeilfelder für einen Temposchub!</b> Sie sind freiwillig – nimm sie nur, wenn der Weg danach frei ist.</li>
           <li>Unfälle kosten Zustand und erhöhen den Druck.</li>
-          <li>Streifen kündigen sich unten mit einem blauen Pfeil an. Abstand, Boostfelder und Streckenmarken senken den Druck.</li>
-          <li>Ist der Druck voll, hast du ein paar Sekunden, um ihn wieder zu senken.</li></ul></li>
+          <li>Streifen kündigen sich unten mit einem blauen Pfeil an und verfolgen dich – nicht berühren!</li></ul></li>
       </ul>
       <p class="wahltitel" id="steuerTitel">STEUERART</p>
       <div class="wahl" style="grid-template-columns:1fr 1fr" role="group" aria-labelledby="steuerTitel">
@@ -647,16 +649,17 @@ const ABSCHNITTE = {
 const AUFTRAEGE = {
   endlos: {
     nr: 0, name: 'Neon-Endlos', kurz: 'So weit du kommst',
-    text: 'Sofort losfahren: erst ruhig, dann immer dichtere Verkehrsmuster bis zu einer festen Obergrenze.',
-    endlos: true, tempo: 40, dichte: 11, wechselFaktor: 0.3,
-    // Es wird immer schneller und voller: Tempo und Dichte steigen ohne feste Obergrenze, die Zunahme
-    // flacht aber ab (Halbwert 9 km), damit es lange spielbar bleibt. Sicherheitsgrenze nur für die Technik.
-    tempoZiel: 80, dichteZiel: 26, wechselZiel: 1.0, halbwert: 9000, tempoSicher: 78,
-    rampe: [300, 4500],            // Verkehrsmuster: hier sind alle Muster voll freigeschaltet
-    mindestLuecke: 10, welle: [480, 70],
+    text: 'Fahren, bis du ein anderes Auto berührst. Es wird schnell immer schneller und voller.',
+    endlos: true, einTreffer: true, ohneDruck: true,   // ein Kontakt = Ende; Streifen sind nur Hindernisse
+    tempo: 42, dichte: 10, wechselFaktor: 0.35,
+    // Steigt schnell und ohne feste Obergrenze: Halbwert 3,5 km (vorher 9 km). Die Zunahme flacht ab,
+    // eine technische Sicherheitsgrenze bleibt.
+    tempoZiel: 90, dichteZiel: 28, wechselZiel: 1.5, halbwert: 3500, tempoSicher: 84,
+    rampe: [200, 2200],            // Verkehrsmuster: hier sind alle Muster voll freigeschaltet
+    mindestLuecke: 10, welle: [500, 60],
     muster: { einzel: 5, paar: 1, versetzt: 2, lkwMix: 1, tor: 0, slalom: 0 },
-    musterMax: { einzel: 2, paar: 2, versetzt: 2.5, lkwMix: 1.5, tor: 1.2, slalom: 1.5 },
-    polizei: { max: 1, maxSpaet: 2, erste: 30, pause: 14, tempo: 1.19, seit: 5.5, druck: 5 },
+    musterMax: { einzel: 2, paar: 2, versetzt: 2.5, lkwMix: 1.5, tor: 1.4, slalom: 1.8 },
+    polizei: { max: 1, maxSpaet: 2, erste: 25, pause: 12, tempo: 1.19, seit: 5.5, druck: 0 },
     abschnitte: [['boulevard', 900], ['autobahn', 1000], ['kueste', 900], ['tunnel', 700], ['lager', 900]],
     coup: { tempo: 0.6, zone: 0.2 }, erklaeren: true, farbe: '#FF4FD8',
   },
@@ -1529,7 +1532,8 @@ function erstelleFahrt(auftragId, optionen = {}) {
       const bw = b.breite * (istPolizei ? 0.9 : 0.88), bl = b.laenge * 0.92;
       const o = ueberlapp(sp, SPIELER.trefferBreite, SPIELER.trefferLaenge, b, bw, bl);
       if (!o) return;
-      if (imZiel) return;
+      if (w.phase === 'ziel') return;          // Zielbereich der Missionen: kein Kontakt mehr
+      const nachCrash = w.phase === 'aus';     // nach dem Crash: weiter sauber trennen, aber kein Ereignis
       const vonHinten = sp.d < b.d && o.od / bl < o.ox / bw * 1.3;    // Spieler fährt auf
       const vonVorne = sp.d > b.d && o.od / bl < o.ox / bw * 1.3;     // wird angefahren
       let art;
@@ -1550,11 +1554,23 @@ function erstelleFahrt(auftragId, optionen = {}) {
         sp.vx = r * 3.5;
         sp.v *= SCHADEN.tempoNachStreifen;
       }
+      if (nachCrash) return;
       b.wackel = 1;
       // Derselbe Kontakt: solange sich die Autos berühren und bis 3,5 s nach dem letzten Schaden durch dieses Auto
       const neuerKontakt = b.kontaktBis < w.zeit && !(b.schadenZeit > w.zeit - 3.5);
       b.kontaktBis = w.zeit + 0.35;
       b.getroffen = true;
+      // Neon-Endlos: jede Berührung mit einem anderen Auto beendet die Fahrt
+      if (A.einTreffer) {
+        if (schadenSchon) return;
+        schadenSchon = true;
+        sp.zustand = 0; w.serie = 0;
+        sp.v = Math.min(sp.v, b.v + (b.stoss || 0));   // nicht durch das getroffene Auto hindurchrollen
+        if (istPolizei) w.statistik.polizeiKontakt++; else w.statistik.unfaelle++;
+        sende('unfall', { art, schaden: 100, polizei: istPolizei, x: (sp.x + b.x) / 2, d: (sp.d + b.d) / 2, id: b.id });
+        beende('crash');
+        return;
+      }
       if (!neuerKontakt || sp.schutz > 0 || schadenSchon) { sende('beruehrung', { id: b.id }); return; }
       schadenSchon = true;
       b.schadenZeit = w.zeit;
@@ -1627,7 +1643,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
 
   // ---------------------------------------------------------------
   function druckUndWarnung() {
-    if (!P || w.phase !== 'fahrt') return;
+    if (!P || A.ohneDruck || w.phase !== 'fahrt') return;
     let gewinn = 0, nahe = false, fern = false;
     for (const p of w.polizei) {
       const dist = Math.hypot(sp.d - p.d, (sp.x - p.x) * 1.4);
@@ -1683,7 +1699,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       }
       if (sp.zustand <= 0) beende('wrack');
       else if (sp.d >= strecke.zielVon) beende('ziel');
-    } else if (w.phaseZeit > (w.phase === 'ziel' ? 3.2 : 2.2)) {
+    } else if (w.phaseZeit > (w.phase === 'ziel' ? 3.2 : w.grund === 'crash' ? 1.3 : 2.2)) {
       w.phase = 'fertig';
       sende('fertig');
     }
@@ -3910,7 +3926,7 @@ const PixelDuell = (() => {
           Grafik.blase(e.polizei ? 'BONK!' : e.art === 'seite' ? 'RATSCH!' : 'KLONK!', e.d, e.x, '#FFD35A', 0.9, 1.2);
           for (let i = 0; i < 10; i++) Grafik.weltPartikel({ art: 'funke', d: e.d, x: e.x, h: 0.6, vh: 2 + Math.random() * 3, g: 9, vd: sp.v * 0.6 + (Math.random() - 0.5) * 6, vx: (Math.random() - 0.5) * 6, dauer: 0.5, groesse: 0.18, farbe: i % 2 ? '#FFD35A' : '#FF9A3D' });
           for (let i = 0; i < 4; i++) Grafik.weltPartikel({ d: e.d, x: e.x + (Math.random() - 0.5), h: 0.8, vh: 1, vd: sp.v * 0.7, dauer: 0.9, groesse: 0.55, wachsen: true, farbe: 'rgba(181, 160, 220, 0.6)' });
-          if (sp.zustand <= 40) zeigeHinweis('zustand', 'Achtung: Der Kombi hält nicht mehr viel aus!', 3, true);
+          if (sp.zustand <= 40 && !lauf.A.einTreffer) zeigeHinweis('zustand', 'Achtung: Der Kombi hält nicht mehr viel aus!', 3, true);
           break;
         }
         case 'beruehrung': Ton.beruehrung(); break;
@@ -3931,7 +3947,7 @@ const PixelDuell = (() => {
             for (let i = 0; i < (bewegungRuhig.matches ? 10 : 30); i++) Grafik.weltPartikel({ art: 'funke', d: sp.d + 8 + Math.random() * 6, x: (Math.random() - 0.5) * 10, h: 3 + Math.random() * 2, vh: 2 + Math.random() * 3, g: 4, vd: sp.v * 0.5, vx: (Math.random() - 0.5) * 3, dauer: 1.6, groesse: 0.3, farbe: ['#24D6CD', '#FFD35A', '#FF4FD8', '#FF9A3D'][i % 4] });
           } else {
             Ton.niederlage();
-            melde(e.grund === 'wrack' ? 'DER KOMBI QUALMT!' : 'GESTELLT!', 2.2, 'gross warn');
+            melde(e.grund === 'crash' ? 'CRASH!' : e.grund === 'wrack' ? 'DER KOMBI QUALMT!' : 'GESTELLT!', 1.3, 'gross warn');
             for (let i = 0; i < 6; i++) Grafik.weltPartikel({ d: sp.d, x: sp.x + (Math.random() - 0.5), h: 1, vh: 1.2, vd: sp.v * 0.5, dauer: 1.6, groesse: 0.7, wachsen: true, farbe: 'rgba(160, 150, 190, 0.7)' });
           }
           break;
@@ -3970,8 +3986,9 @@ const PixelDuell = (() => {
     setzeText('hudRest', anzeigeM > 950 ? `${(anzeigeM / 1000).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km` : `${Math.max(0, Math.round(anzeigeM / 10) * 10)} m`);
     setzeText('hudBeutel', String(ce.beutel));
     setzeBalken('zustandBalken', F.sp.zustand);
+    setzeText('hudTempo', `${Math.round(F.sp.v * 3.6)} km/h`);
     // Verfolgungsdruck nur, wenn er relevant ist
-    const druckSicht = F.w.polizei.length > 0 || F.w.anmeldungen.length > 0 || F.w.druck > 0.5;
+    const druckSicht = !lauf.A.ohneDruck && (F.w.polizei.length > 0 || F.w.anmeldungen.length > 0 || F.w.druck > 0.5);
     if (hudAlt.druckSicht !== druckSicht) { hudAlt.druckSicht = druckSicht; $('druckBalken').classList.toggle('ausgeblendet', !druckSicht); }
         setzeBalken('druckBalken', F.w.druck, F.w.warnung >= 0 ? 'w' : '');
     // Wirkzeit nur während des Effekts (kein Vorrat, kein Bedienelement)
@@ -4011,7 +4028,7 @@ const PixelDuell = (() => {
     grund.className = 'ergebnisgrund' + (geschafft || endlos ? '' : ' schlecht');
     grund.textContent = geschafft
       ? `${lauf.A.name}: Halle 7 erreicht, Tor zu – Feierabend. Zeit: ${w.zeit.toLocaleString('de-DE', { maximumFractionDigits: 1 })} s.`
-      : endlos ? `${km.toLocaleString('de-DE', { maximumFractionDigits: 2 })} km Neon-Endlos. ` + (w.grund === 'wrack' ? 'Der Kombi qualmt – Zustand leer.' : 'Die Streife hat aufgeschlossen.')
+      : endlos ? `Crash nach ${km.toLocaleString('de-DE', { maximumFractionDigits: 2 })} km bei ${Math.round(w.statistik.maxTempo * 3.6)} km/h${w.statistik.polizeiKontakt ? ' – mit einer Streife' : ''}.`
       : w.grund === 'wrack' ? 'Grund: Der Fahrzeugzustand ist leer – der Kombi qualmt und rollt aus.'
       : 'Grund: Der Verfolgungsdruck blieb zu lange voll – die Streife hat aufgeschlossen.';
     const dl = $('ergebnisZahlen'); dl.textContent = '';
@@ -4055,9 +4072,9 @@ const PixelDuell = (() => {
     spiel: 'Nachtschicht: Hafenflucht',
     adresse: 'https://moje9328.github.io/nachtschicht/',
     schluessel: 'pixelhafen.nachtschicht.freunde',
-    stand: st => ({ punkte: Speicher.beste(st).punkte }),
-    stufen: { endlos: 'Neon-Endlos', containerkai: 'Containerkai', neonviertel: 'Neonviertel', nachthafen: 'Nachthafen' },
-    stufe: () => (lauf ? lauf.id : 'endlos'),
+    stand: () => ({ punkte: Speicher.beste('endlos').punkte }),
+    stufen: null,
+    stufe: () => 'endlos',
     beiStufe: () => {},
     einheit: 'Punkte', levelWort: '', wasText: 'deine Bestleistung',
     erklaerung: 'Gezählt wird deine beste Punktzahl im gewählten Modus.',

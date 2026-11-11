@@ -100,16 +100,17 @@ const ABSCHNITTE = {
 const AUFTRAEGE = {
   endlos: {
     nr: 0, name: 'Neon-Endlos', kurz: 'So weit du kommst',
-    text: 'Sofort losfahren: erst ruhig, dann immer dichtere Verkehrsmuster bis zu einer festen Obergrenze.',
-    endlos: true, tempo: 40, dichte: 11, wechselFaktor: 0.3,
-    // Es wird immer schneller und voller: Tempo und Dichte steigen ohne feste Obergrenze, die Zunahme
-    // flacht aber ab (Halbwert 9 km), damit es lange spielbar bleibt. Sicherheitsgrenze nur für die Technik.
-    tempoZiel: 80, dichteZiel: 26, wechselZiel: 1.0, halbwert: 9000, tempoSicher: 78,
-    rampe: [300, 4500],            // Verkehrsmuster: hier sind alle Muster voll freigeschaltet
-    mindestLuecke: 10, welle: [480, 70],
+    text: 'Fahren, bis du ein anderes Auto berührst. Es wird schnell immer schneller und voller.',
+    endlos: true, einTreffer: true, ohneDruck: true,   // ein Kontakt = Ende; Streifen sind nur Hindernisse
+    tempo: 42, dichte: 10, wechselFaktor: 0.35,
+    // Steigt schnell und ohne feste Obergrenze: Halbwert 3,5 km (vorher 9 km). Die Zunahme flacht ab,
+    // eine technische Sicherheitsgrenze bleibt.
+    tempoZiel: 90, dichteZiel: 28, wechselZiel: 1.5, halbwert: 3500, tempoSicher: 84,
+    rampe: [200, 2200],            // Verkehrsmuster: hier sind alle Muster voll freigeschaltet
+    mindestLuecke: 10, welle: [500, 60],
     muster: { einzel: 5, paar: 1, versetzt: 2, lkwMix: 1, tor: 0, slalom: 0 },
-    musterMax: { einzel: 2, paar: 2, versetzt: 2.5, lkwMix: 1.5, tor: 1.2, slalom: 1.5 },
-    polizei: { max: 1, maxSpaet: 2, erste: 30, pause: 14, tempo: 1.19, seit: 5.5, druck: 5 },
+    musterMax: { einzel: 2, paar: 2, versetzt: 2.5, lkwMix: 1.5, tor: 1.4, slalom: 1.8 },
+    polizei: { max: 1, maxSpaet: 2, erste: 25, pause: 12, tempo: 1.19, seit: 5.5, druck: 0 },
     abschnitte: [['boulevard', 900], ['autobahn', 1000], ['kueste', 900], ['tunnel', 700], ['lager', 900]],
     coup: { tempo: 0.6, zone: 0.2 }, erklaeren: true, farbe: '#FF4FD8',
   },

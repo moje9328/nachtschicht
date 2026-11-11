@@ -638,7 +638,8 @@ function erstelleFahrt(auftragId, optionen = {}) {
       const bw = b.breite * (istPolizei ? 0.9 : 0.88), bl = b.laenge * 0.92;
       const o = ueberlapp(sp, SPIELER.trefferBreite, SPIELER.trefferLaenge, b, bw, bl);
       if (!o) return;
-      if (imZiel) return;
+      if (w.phase === 'ziel') return;          // Zielbereich der Missionen: kein Kontakt mehr
+      const nachCrash = w.phase === 'aus';     // nach dem Crash: weiter sauber trennen, aber kein Ereignis
       const vonHinten = sp.d < b.d && o.od / bl < o.ox / bw * 1.3;    // Spieler fährt auf
       const vonVorne = sp.d > b.d && o.od / bl < o.ox / bw * 1.3;     // wird angefahren
       let art;
@@ -659,11 +660,23 @@ function erstelleFahrt(auftragId, optionen = {}) {
         sp.vx = r * 3.5;
         sp.v *= SCHADEN.tempoNachStreifen;
       }
+      if (nachCrash) return;
       b.wackel = 1;
       // Derselbe Kontakt: solange sich die Autos berühren und bis 3,5 s nach dem letzten Schaden durch dieses Auto
       const neuerKontakt = b.kontaktBis < w.zeit && !(b.schadenZeit > w.zeit - 3.5);
       b.kontaktBis = w.zeit + 0.35;
       b.getroffen = true;
+      // Neon-Endlos: jede Berührung mit einem anderen Auto beendet die Fahrt
+      if (A.einTreffer) {
+        if (schadenSchon) return;
+        schadenSchon = true;
+        sp.zustand = 0; w.serie = 0;
+        sp.v = Math.min(sp.v, b.v + (b.stoss || 0));   // nicht durch das getroffene Auto hindurchrollen
+        if (istPolizei) w.statistik.polizeiKontakt++; else w.statistik.unfaelle++;
+        sende('unfall', { art, schaden: 100, polizei: istPolizei, x: (sp.x + b.x) / 2, d: (sp.d + b.d) / 2, id: b.id });
+        beende('crash');
+        return;
+      }
       if (!neuerKontakt || sp.schutz > 0 || schadenSchon) { sende('beruehrung', { id: b.id }); return; }
       schadenSchon = true;
       b.schadenZeit = w.zeit;
@@ -736,7 +749,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
 
   // ---------------------------------------------------------------
   function druckUndWarnung() {
-    if (!P || w.phase !== 'fahrt') return;
+    if (!P || A.ohneDruck || w.phase !== 'fahrt') return;
     let gewinn = 0, nahe = false, fern = false;
     for (const p of w.polizei) {
       const dist = Math.hypot(sp.d - p.d, (sp.x - p.x) * 1.4);
@@ -792,7 +805,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       }
       if (sp.zustand <= 0) beende('wrack');
       else if (sp.d >= strecke.zielVon) beende('ziel');
-    } else if (w.phaseZeit > (w.phase === 'ziel' ? 3.2 : 2.2)) {
+    } else if (w.phaseZeit > (w.phase === 'ziel' ? 3.2 : w.grund === 'crash' ? 1.3 : 2.2)) {
       w.phase = 'fertig';
       sende('fertig');
     }

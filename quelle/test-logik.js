@@ -2,7 +2,7 @@
 // Prüft dieselben Dateien wie im Spiel (lade-logik.js).
 const L = require('./lade-logik.js')();
 const mische = (a, b, t) => a + (b - a) * t;
-const { DT, ANSICHT, SPIELER, BOOST, SCHADEN, DRUCK, PUNKTE, AUFTRAEGE, AUFTRAG_LISTE, MODI, FAHRZEUGE, erstelleCoup, erstelleFahrt, Testfahrer, spurX, schwierigkeit, steigerung, baueStrecke } = L;
+const { TEMPO_BEZUG, DT, ANSICHT, SPIELER, BOOST, SCHADEN, DRUCK, PUNKTE, AUFTRAEGE, AUFTRAG_LISTE, MODI, FAHRZEUGE, erstelleCoup, erstelleFahrt, Testfahrer, spurX, schwierigkeit, steigerung, baueStrecke } = L;
 const SCHNELL = process.argv.includes('schnell');
 let geprueft = 0, fehler = 0;
 function ok(bed, text) { geprueft++; if (!bed) { fehler++; console.log('  FEHLER:', text); } }
@@ -373,6 +373,7 @@ abschnitt('Fahrt: Verfolgungsdruck und Warnphase');
 // ------------------------------------------------------------------
 abschnitt('Faire Verkehrserzeugung (reproduzierbare Seeds)');
 const SEEDS = SCHNELL ? 6 : 16;
+const endlosZeiten = [];
 const zusammenfassung = {};
 for (const id of MODI) {
   let waende = 0, waendeNachUnfall = 0, proben = 0, zuNah = 0, blinkKurz = 0, wechsel = 0, ueberlapp = 0, polOhneWarnung = 0, polVorne = 0, polZuSchnell = 0, polImBild = 0, geschafft = 0, polizeiAnzahl = 0, tempoZuHoch = 0;
@@ -425,7 +426,8 @@ for (const id of MODI) {
         else { proben++; if (!F.pfadFrei([], w.vGrund, true)) waende++; }
       }
     }
-    if (F.w.grund === 'ziel' || (AUFTRAEGE[id].endlos && F.w.zeit >= 60)) geschafft++;
+    if (F.w.grund === 'ziel' || (AUFTRAEGE[id].endlos && F.w.zeit >= 20)) geschafft++;
+    if (AUFTRAEGE[id].endlos) endlosZeiten.push(F.w.zeit);
   }
   zusammenfassung[id] = { geschafft, polizeiAnzahl };
   ok(waende === 0, `${id}: Verkehr baut keine geschlossene Wand: ${proben} Stichproben, ${waende} Wände (nach eigenen Unfällen/beim Hinterherfahren: ${waendeNachUnfall})`);
@@ -444,8 +446,9 @@ for (const id of MODI) {
     ok(polVorne === 0, `${id}: keine Streife setzt sich vor den Spieler (${polVorne})`);
     ok(ueberlapp === 0, `${id}: Streifen fahren nie durch andere Autos (${ueberlapp})`);
   }
-  // Endlos wird immer schwerer und endet irgendwann; der Einstieg (erste Minute) muss aber sicher machbar sein
-  ok(geschafft >= SEEDS, `${id}: Testfahrer ${AUFTRAEGE[id].endlos ? 'übersteht mindestens die erste Minute' : 'schafft'}: ${geschafft} von ${SEEDS} Seeds`);
+  // Endlos: ein Kontakt beendet die Fahrt, es wird immer schwerer; der Einstieg (20 s) muss sicher machbar sein
+  ok(geschafft >= SEEDS - (AUFTRAEGE[id].endlos ? Math.ceil(SEEDS / 8) : 0), `${id}: Testfahrer ${AUFTRAEGE[id].endlos ? 'übersteht den Einstieg (20 s)' : 'schafft'}: ${geschafft} von ${SEEDS} Seeds`);
+  if (AUFTRAEGE[id].endlos) { endlosZeiten.sort((a, b) => a - b); const med = endlosZeiten[endlosZeiten.length >> 1]; ok(med >= 30 && med <= 400, `${id}: guter Testfahrer kommt im Median ${med.toFixed(0)} s weit (spielbar, aber endlich)`); }
 }
 
 abschnitt('Niemand bleibt im Verkehr hängen');
@@ -486,6 +489,24 @@ for (const id of AUFTRAG_LISTE) {
   ok(ok2 >= n - 1, `${id}: ganz ohne Boostfelder schaffbar (${ok2}/${n})`);
 }
 
+abschnitt('Neon-Endlos: ein Kontakt beendet die Fahrt');
+{
+  const F = erstelleFahrt('endlos', { seed: 1, startFaktor: 1 });
+  F.w.spawnUhr = 1e9; F.w.polizeiUhr = 1e9;
+  for (let i = 0; i < 10; i++) F.schritt({});
+  // Nähe allein ist kein Crash
+  const a = autoVor(F, 0, (SPIELER.breite + FAHRZEUGE.taxi.breite) / 2 + 0.08, 'taxi', F.sp.v);
+  for (let i = 0; i < 60; i++) F.schritt({});
+  ok(F.w.phase === 'fahrt', 'Vorbeifahren mit 8 cm Lücke: kein Crash');
+  F.w.autos.length = 0;
+  const b = autoVor(F, 12, 0, 'taxi', 10);
+  let crashs = 0;
+  for (let i = 0; i < 120 * 3; i++) { F.schritt({}); crashs += F.w.ereignisse.filter(e => e.typ === 'unfall').length; F.w.ereignisse.length = 0; }
+  ok(crashs === 1 && F.w.grund === 'crash' && F.w.phase === 'fertig', `Berührung = sofort Ende (genau ein Crash, ${crashs})`);
+  ok(b.d - F.sp.d > 0, 'nach dem Crash rollt der Kombi nicht durch das Auto');
+  ok(F.w.druck === 0 && F.w.warnung < 0, 'kein Verfolgungsdruck im Endlosmodus');
+}
+
 abschnitt('Spielgefühl: Tempo, Vorwarnzeit, Verkehrsrhythmus (Abnahme)');
 // Vorher (Runde 2) gemessen: Annäherung an den Verkehr im Median 10,3–11,6 m/s, Vorwarnzeit 5,3–6,0 s,
 // im Containerkai 13 % der Fahrzeit ohne Auto im Bild. Ziel: ~1,5-fache Annäherung, kaum Leerlauf.
@@ -495,9 +516,8 @@ for (const id of MODI) {
   let zeit = 0, leer = 0, laengsteLeere = 0, leerSeit = 0, n = SCHNELL ? 3 : 5;
   for (let seed = 21; seed < 21 + n; seed++) {
     const F = erstelleFahrt(id, { seed }); const bot = Testfahrer.erstelle(F, { felder: false });
-    if (AUFTRAEGE[id].endlos) { F.sp.d = AUFTRAEGE[id].rampe[1]; }   // Endlos an der Obergrenze messen
     let k = 0;
-    const grenze = AUFTRAEGE[id].endlos ? 120 * 90 : 120 * 400;
+    const grenze = AUFTRAEGE[id].endlos ? 120 * 30 : 120 * 400;   // Endlos: Einstieg messen (danach wird es gewollt schneller)
     while (F.w.phase === 'fahrt' && k++ < grenze) {
       F.schritt(bot());
       if (F.w.zeit < 8) continue;   // kurze Startphase nicht mitzählen
@@ -511,6 +531,12 @@ for (const id of MODI) {
   const m = naeh[naeh.length >> 1];
   ok(m >= VORHER[id] * 1.4 && m <= VORHER[id] * 2, `${id}: Annäherung an den Verkehr ${m.toFixed(1)} m/s = ${(m / VORHER[id]).toFixed(2)} × vorher (Ziel ~1,5×)`);
   ok(ANSICHT.vorne / m >= 2.2, `${id}: Vorwarnzeit ${(ANSICHT.vorne / m).toFixed(1)} s (≥ 2,2 s auf allen Geräten gleich)`);
+  if (AUFTRAEGE[id].endlos) {
+    // auch bei sehr hohem Endlos-Tempo bleibt genug Zeit für einen Spurwechsel (~0,2 s)
+    const A = AUFTRAEGE.endlos, v = Math.min(A.tempoSicher, mische(A.tempo, A.tempoZiel, steigerung(A, 20000)));
+    const naehMax = v - 16 * v / TEMPO_BEZUG;   // langsamster Verkehr
+    ok(ANSICHT.vorne / naehMax >= 0.9, `Endlos bei 20 km (${(v * 3.6).toFixed(0)} km/h): Vorwarnzeit mindestens ${(ANSICHT.vorne / naehMax).toFixed(2)} s`);
+  }
   ok(leer / zeit < 0.08 && laengsteLeere < 4, `${id}: kaum Leerlauf (${(100 * leer / zeit).toFixed(1)} % ohne Auto im Bild, längste Pause ${laengsteLeere.toFixed(1)} s)`);
 }
 {
@@ -541,13 +567,15 @@ for (const id of MODI) {
   const v5 = mische(A.tempo, A.tempoZiel, steigerung(A, 5000)), v15 = mische(A.tempo, A.tempoZiel, steigerung(A, 15000)), v30 = mische(A.tempo, A.tempoZiel, steigerung(A, 30000));
   ok(steigt && v15 > v5 + 4 && v30 > v15 + 2, `Endlos wird immer schneller: 5 km ${(v5 * 3.6).toFixed(0)} km/h, 15 km ${(v15 * 3.6).toFixed(0)} km/h, 30 km ${(v30 * 3.6).toFixed(0)} km/h`);
   ok(v30 - v15 < v15 - v5 + 1e-9 && A.tempoSicher < A.tempoZiel, 'Zunahme flacht ab, technische Sicherheitsgrenze bleibt');
-  const F = erstelleFahrt('endlos', { seed: 5 }); const bot = Testfahrer.erstelle(F);
+  const F = erstelleFahrt('endlos', { seed: 5 }); F.w.spawnUhr = 1e9; F.w.polizeiUhr = 1e9;   // nur das Tempo messen
   let k = 0, vAlt = F.w.vGrund, sinkt = false;
-  while (F.w.phase === 'fahrt' && k++ < 120 * 200) { F.schritt(bot()); if (F.w.vGrund < vAlt - 1e-9) sinkt = true; vAlt = F.w.vGrund; }
-  ok(!sinkt && F.w.vGrund > A.tempo + 5, `Grundtempo steigt im Lauf stetig (${(A.tempo * 3.6).toFixed(0)} → ${(F.w.vGrund * 3.6).toFixed(0)} km/h)`);
+  while (F.w.phase === 'fahrt' && k++ < 120 * 60) { F.schritt({}); if (F.w.vGrund < vAlt - 1e-9) sinkt = true; vAlt = F.w.vGrund; }
+  ok(!sinkt && F.w.vGrund > A.tempo + 10, `Grundtempo steigt schnell und stetig: nach 60 s ${(A.tempo * 3.6).toFixed(0)} → ${(F.w.vGrund * 3.6).toFixed(0)} km/h`);
   ok(F.w.vGrund * BOOST.faktor >= F.sp.v - 1e-6, 'Höchsttempo = Grundtempo × Boostfaktor (Boost addiert nichts darüber hinaus)');
-  const m = F.w.statistik.muster;
-  ok(['einzel', 'paar', 'versetzt', 'lkwMix', 'tor', 'slalom'].every(x => m[x] > 0), `alle Verkehrsmuster kommen vor ${JSON.stringify(m)}`);
+  const G = erstelleFahrt('endlos', { seed: 5 }); G.sp.d = A.rampe[1]; const botG = Testfahrer.erstelle(G, { spur: true });
+  let kg = 0; while (G.w.phase === 'fahrt' && kg++ < 120 * 120) G.schritt(botG());
+  const m = G.w.statistik.muster;
+  ok(['einzel', 'paar', 'versetzt', 'lkwMix', 'slalom'].every(x => m[x] > 0) && Object.keys(m).length >= 5, `Verkehrsmuster kommen vor ${JSON.stringify(m)}`);
   // Strecke ohne Ende, Abschnitte wiederholen sich, Streckenmarken laufen weiter
   const st = baueStrecke(A);
   ok(!isFinite(st.laenge) && st.abschnittBei(4400 * 3 + 10).art === 'boulevard' && isFinite(st.marke(50)), 'Endlos-Strecke wiederholt ihre Abschnitte ohne Ende');

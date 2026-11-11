@@ -154,3 +154,26 @@ GitHub-Repo `moje9328/nachtschicht` anlegen, Pages aus main /, pushen; in `~/spi
   - schwächer: 6/6, 4/6, 5/6; Endlos 1,2–3,3 min.
 
 **Nicht geprüft:** echtes Handy; Gefühl des Spurwechsels mit echten Fingern; ob die Dichte für Menschen zu hoch ist (bisher nur Bots).
+
+## Runde 5 (11.11.2026): reines Endlos-Spiel, ein Kontakt = Ende, schneller schwerer
+
+**Wunsch:** Das Spiel soll ein Endlos-Spiel sein: Man fährt, bis man ein anderes Auto berührt. Schwierigkeit und Tempo sollen schneller steigen.
+
+**Änderungen:**
+- `AUFTRAEGE.endlos`:
+  - `einTreffer`: Jede Berührung mit Verkehr oder Streife beendet die Fahrt (`grund: 'crash'`, kurzer Abspann von 1,3 s). Danach „Sofort nochmal“ mit Fokus, Enter startet sofort.
+  - `ohneDruck`: kein Verfolgungsdruck; Streifen sind nur noch verfolgende Hindernisse.
+  - Halbwert der Steigerung 3,5 km (vorher 9 km). Tempo 42 → Ziel 90 m/s, Sicherheitsgrenze 84 m/s.
+  - Ungefähre Tempi: 1 km ≈ 176 km/h, 2 km ≈ 203 km/h, 5 km ≈ 256 km/h. Dichte 10 → 28, Muster ab 200 m und voll bei 2,2 km.
+- **Abspann:** Nach dem Crash werden die Autos weiter physisch getrennt, der Kombi übernimmt das Tempo des getroffenen Autos. Gefundener Fehler: Vorher rollte er im Abspann durch das Auto hindurch.
+- **Menü/HUD:**
+  - Der Knopf „Missionen“ ist ausgeblendet (Missionen und Coup bleiben im Code und in den Logik-Tests, sind aber nicht mehr erreichbar).
+  - HUD zeigt TEMPO in km/h statt Zustand und keinen Druckbalken.
+  - Das Ergebnis nennt „Crash nach X km bei Y km/h“. „Freunde herausfordern“ vergleicht nur Endlos-Punkte.
+
+**Tests:**
+- Logik 186/186. Neu: Nähe ist kein Crash, eine Berührung beendet sofort mit genau einem Crash, kein Durchrollen, kein Druck, Tempo steigt schnell, Vorwarnzeit bei 20 km ≥ 0,9 s.
+- Browser Chromium 103/103, WebKit 98/98; die Suite ist neu für das reine Endlos-Spiel geschrieben.
+- Bots (Spurwechsel per Tipp), Median bis zum Crash: perfekt 47 s (2,4 km, 212 km/h), menschenähnlich 36 s, schwach 21 s. Keine vom Planer erzeugten Wände.
+
+**Nicht geprüft:** echtes Handy; ob Menschen den Einstieg als fair empfinden.

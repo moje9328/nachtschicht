@@ -59,6 +59,9 @@
   #zustandBalken.tief { --b: linear-gradient(90deg, #FF805B, #FFB35C); }
   #druckBalken { --b: linear-gradient(90deg, #4E8DFF, #FF4FD8); }
   #druckBalken.warnung { border-color: var(--magenta); box-shadow: 0 0 0 2px rgba(255, 79, 216, 0.45); }
+  #tempoFeld { flex: 1 1 0; padding: 1px 8px; }
+  #tempoFeld b { font-size: 11px; }
+  body:not([data-modus="endlos"]) #tempoFeld, body[data-modus="endlos"] #zustandBalken { display: none; }
   #boostWirkung { flex: 0.75 1 0; --b: linear-gradient(90deg, #24D6CD, #FFD35A); border-color: var(--gelb); }
   #boostWirkung[hidden] { display: none; }
   body[data-zustand="coup"] .nurFahrt, body[data-zustand="menue"] #hud { display: none; }
@@ -175,6 +178,7 @@
         </button>
       </div>
       <div class="hudzeile nurFahrt">
+        <div class="anzeige" id="tempoFeld"><small>TEMPO</small><b id="hudTempo">0 km/h</b></div>
         <div class="balken" id="zustandBalken" role="meter" aria-label="Fahrzeugzustand" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i><span>ZUSTAND</span></div>
         <div class="balken ausgeblendet" id="druckBalken" role="meter" aria-label="Verfolgungsdruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><span>DRUCK</span></div>
         <div class="balken" id="boostWirkung" role="timer" aria-label="Boost wirkt noch" hidden><i></i><span>BOOST!</span></div>
@@ -204,12 +208,12 @@
       <p class="marke"><svg aria-hidden="true"><use href="#logo"/></svg>PIXELHAFEN</p>
       <h1 id="fStartTitel">NACHTSCHICHT<small>HAFENFLUCHT</small></h1>
       <canvas id="startTitel" width="640" height="320" aria-hidden="true"></canvas>
-      <p class="unterzeile">Neon-Arcade-Racer: Weiche bei Vollgas dem Verkehr aus!</p>
+      <p class="unterzeile">Endlos-Racer: Fahr, so weit du kommst – ein Kontakt, und es ist vorbei!</p>
       <p class="hinweistext" id="startRekord" style="text-align:center" hidden></p>
       <p class="duell" id="startDuell" hidden></p>
       <div class="knoepfe">
         <button class="btn main" id="spielenKnopf" type="button">Spielen</button>
-        <button class="btn" id="auftragWahlKnopf" type="button">Missionen</button>
+        <button class="btn" id="auftragWahlKnopf" type="button" hidden>Missionen</button>
         <div class="knoepfe zwei" style="margin-top:0">
           <button class="btn klein" id="soundKnopf" type="button">Sound</button>
           <button class="btn klein" id="steuerungKnopf" type="button">Steuerung</button>
@@ -219,7 +223,7 @@
           <a class="btn klein" href="https://moje9328.github.io/spiele/">Zur Pixelhafen-Seite</a>
         </div>
       </div>
-      <p class="hinweistext">„Spielen“ startet sofort Neon-Endlos. Alles ist erfunden: Stadt, Fahrzeuge, Musik. Beutetaschen sind reine Spielpunkte.</p>
+      <p class="hinweistext">Je weiter du kommst, desto schneller und voller wird es. Alles ist erfunden: Stadt, Fahrzeuge, Musik.</p>
     </section>
 
     <section id="fAuftraege" hidden>
@@ -256,15 +260,13 @@
           <li>Finger auf die Steuerfläche legen und seitlich ziehen; das Auto folgt deiner Bewegung, es springt nicht zum Finger.</li>
           <li>Computer: ← → gedrückt halten oder mit der Maus auf der Straße ziehen.</li>
           <li>P oder Esc: Pause. M: Ton.</li></ul></li>
-        <li><h3>Coup (optional bei Missionen)</h3><p>Tippen, Leertaste oder der IMPULS-Knopf, wenn der Zeiger im hellen Feld steht. Danach die fliegenden Beutetaschen im Ring fangen.</p></li>
         <li><h3>Fahrt</h3><ul>
           <li>Weiche dem Verkehr aus – das ist die Hauptaufgabe. In Neon-Endlos wird es mit jedem Kilometer schneller und voller. Verbinde saubere Überholungen zu Serien. Blinkende Autos wechseln gleich die Spur.</li>
           <li>Knapp, aber ohne Berührung vorbei gibt Bonuspunkte – pro Auto einmal.</li>
-          <li>Ein Unfall kostet Zustand, beendet aber nicht gleich den Lauf. Ist der Zustand leer, ist Schluss.</li>
+          <li>Berührst du ein anderes Auto – auch eine Streife –, ist die Fahrt vorbei. Je weiter du kommst, desto schneller und dichter wird der Verkehr.</li>
           <li><b>Fahre über die leuchtenden Pfeilfelder für einen Temposchub!</b> Sie sind freiwillig – nimm sie nur, wenn der Weg danach frei ist.</li>
           <li>Unfälle kosten Zustand und erhöhen den Druck.</li>
-          <li>Streifen kündigen sich unten mit einem blauen Pfeil an. Abstand, Boostfelder und Streckenmarken senken den Druck.</li>
-          <li>Ist der Druck voll, hast du ein paar Sekunden, um ihn wieder zu senken.</li></ul></li>
+          <li>Streifen kündigen sich unten mit einem blauen Pfeil an und verfolgen dich – nicht berühren!</li></ul></li>
       </ul>
       <p class="wahltitel" id="steuerTitel">STEUERART</p>
       <div class="wahl" style="grid-template-columns:1fr 1fr" role="group" aria-labelledby="steuerTitel">

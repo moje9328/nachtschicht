@@ -41,14 +41,18 @@ const Testfahrer = {
       if (uhr <= 0) {
         uhr = opt.reaktion || 0.1;
         const kand = [sp.x];
-        for (let s = 0; s < w.SP; s++) { const c = spurX(s, w.SP); if (opt.spur) kand.push(c); else kand.push(c, c - 0.9, c + 0.9); }
+        // Spurmodus wie ein Mensch: erst die angepeilte Spur erreichen, dann höchstens eine Nachbarspur weiter
+        const spurJetzt = Math.max(0, Math.min(w.SP - 1, Math.round(sp.x / SPUR + (w.SP - 1) / 2)));
+        const unterwegs = opt.spur && Math.abs(sp.x - ziel) > 0.4;
+        if (opt.spur) { for (let s = 0; s < w.SP; s++) kand.push(spurX(s, w.SP)); }
+        else for (let s = 0; s < w.SP; s++) { const c = spurX(s, w.SP); kand.push(c, c - 0.9, c + 0.9); }
         // Boostfelder ansteuern (Standard), wenn der Weg dorthin sicher ist; opt.felder === false ignoriert sie
         const feld = opt.felder === false || opt.felder === 'meiden' ? null : w.felder.find(f => f.status === 'offen' && f.d - sp.d > 4 && f.d - sp.d < (opt.sicht || ANSICHT.vorne));
         let best = sp.x, bw = -1e9;
         const v = Math.max(sp.v, w.vGrund);
         for (const X of kand) {
           const xx = Math.max(F.X_MIN, Math.min(F.X_MAX, X));
-          let b = bewerte(xx, v) + (Math.abs(xx - ziel) < 0.2 ? 0.25 : 0);
+          let b = bewerte(xx, v) + (Math.abs(xx - ziel) < 0.2 ? (unterwegs ? 1.2 : 0.25) : 0);   // gefassten Plan halten
           if (feld && b > 0.8 && Math.abs(xx - feld.x) < 0.3) b += 1.0;
           if (opt.felder === 'meiden' && w.felder.some(f => f.status === 'offen' && f.d - sp.d > -3 && f.d - sp.d < 35 && Math.abs(xx - f.x) < f.breite / 2 + 0.4)) b -= 1.5;
           if (b > bw) { bw = b; best = xx; }

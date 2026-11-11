@@ -11,6 +11,9 @@ const Eingabe = (() => {
   const st = {
     links: new Set(), rechts: new Set(),
     zug: null,                 // { id, startX, x0, mPerPx, letzteX }
+    steuerart: 'spur',         // 'spur': ein Tipp/Tastendruck = eine Spur · 'ziehen': relativ ziehen
+    zielSpur: null,            // Zielspur im Spurmodus
+    spurwechsel: 0,            // für Tests
     aktiv: () => null,         // liefert 'fahrt' | 'coup' | null
     spieler: () => ({ x: 0, min: -5, max: 5, breite: 12 }),
     beiAktion: () => {}, beiPause: () => {}, beiTon: () => {}, beiErsterBeruehrung: () => {},
@@ -20,10 +23,18 @@ const Eingabe = (() => {
 
   function leeren() {
     st.links.clear(); st.rechts.clear();
-    st.zug = null;
+    st.zug = null; st.zielSpur = null;
   }
 
+  // Spurwechsel um eine Spur (mehrere Drücke schnell hintereinander = mehrere Spuren)
+  function spurWechsel(richtung) {
+    const s = st.spieler();
+    const jetzt = st.zielSpur != null ? st.zielSpur : klemme(Math.round(s.x / SPUR + (SPUREN - 1) / 2), 0, SPUREN - 1);
+    st.zielSpur = klemme(jetzt + richtung, 0, SPUREN - 1);
+    st.spurwechsel++;
+  }
   function lesen() {
+    if (st.steuerart === 'spur') return { ziel: st.zielSpur != null ? spurX(st.zielSpur, SPUREN) : null, richtung: 0, spur: true };
     const r = (st.rechts.size ? 1 : 0) - (st.links.size ? 1 : 0);
     let ziel = null;
     if (st.zug && st.zug.ziel != null) ziel = st.zug.ziel;
@@ -54,6 +65,7 @@ const Eingabe = (() => {
       if (!modus) return;
       e.preventDefault();
       if (modus === 'coup') { st.beiAktion(); return; }
+      if (st.steuerart === 'spur') { const r = el.getBoundingClientRect(); spurWechsel(e.clientX < r.left + r.width / 2 ? -1 : 1); return; }
       if (st.zug) return;                       // ein Finger lenkt, weitere Finger ignorieren
       try { el.setPointerCapture(e.pointerId); } catch (x) { /* egal */ }
       const s = st.spieler();
@@ -71,12 +83,15 @@ const Eingabe = (() => {
   // Halte-Knöpfe (links, rechts): eigene Pointer, gehen nie an die Fläche weiter
   function verbindeKnopf(el, menge) {
     const weg = e => { menge.delete(e.pointerId); el.classList.remove('gedrueckt'); };
+    el.addEventListener('pointerleave', () => { if (st.steuerart === 'spur') el.classList.remove('gedrueckt'); });
     el.addEventListener('pointerdown', e => {
       e.stopPropagation(); e.preventDefault();
       st.beiErsterBeruehrung(e);
       if (st.aktiv() !== 'fahrt') return;
+      el.classList.add('gedrueckt');
+      if (st.steuerart === 'spur') { spurWechsel(menge === st.links ? -1 : 1); return; }
       try { el.setPointerCapture(e.pointerId); } catch (x) { /* egal */ }
-      menge.add(e.pointerId); el.classList.add('gedrueckt');
+      menge.add(e.pointerId);
     });
     el.addEventListener('pointerup', e => { e.stopPropagation(); weg(e); });
     el.addEventListener('pointercancel', weg);
@@ -102,6 +117,7 @@ const Eingabe = (() => {
       if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) { e.preventDefault(); st.beiAktion(); }
       return;
     }
+    if (st.steuerart === 'spur' && (LINKS.includes(e.code) || RECHTS.includes(e.code))) { e.preventDefault(); if (!e.repeat) spurWechsel(LINKS.includes(e.code) ? -1 : 1); return; }
     if (LINKS.includes(e.code)) { e.preventDefault(); st.links.add(e.code); }
     else if (RECHTS.includes(e.code)) { e.preventDefault(); st.rechts.add(e.code); }
     else if (e.code === 'Space') e.preventDefault();   // in der Fahrt ohne Funktion, aber kein Seitenscrollen
@@ -113,7 +129,7 @@ const Eingabe = (() => {
   window.addEventListener('blur', leeren);
 
   return {
-    st, lesen, leeren, neuBasis, verbindeFlaeche,
+    st, lesen, leeren, neuBasis, verbindeFlaeche, spurWechsel,
     verbindeKnoepfe(links, rechts) { verbindeKnopf(links, st.links); verbindeKnopf(rechts, st.rechts); },
   };
 })();

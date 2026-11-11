@@ -72,6 +72,7 @@
   }
   #lenkflaeche.unsichtbar { background: none; border: 0; }
   #lenkflaeche.seite { border-top: 0; border-right: 2px solid rgba(47, 90, 133, 0.7); }
+  #lenkflaeche.spurmodus::after { content: ''; position: absolute; left: 50%; top: 12px; bottom: 12px; width: 2px; background: rgba(36, 214, 205, 0.35); pointer-events: none; }
   #lenkHinweis { position: absolute; left: 0; right: 0; top: 10px; text-align: center; color: var(--muted); font: 8px/1.6 var(--retro); pointer-events: none; opacity: 0.85; }
   #lenkHinweis b { color: var(--tuerkis); font-weight: 400; }
   .steuerknopf {
@@ -157,7 +158,7 @@
 <div id="sicherProbe"></div>
 <div id="app">
   <main id="buehne">
-    <canvas id="bild" tabindex="0" role="img" aria-label="Spielfeld: Straße von leicht schräg oben, dein Kombi unten. Ziehen auf der Steuerfläche, Pfeiltasten oder A und D lenken. Leuchtende Pfeilfelder auf der Straße geben einen Temposchub."></canvas>
+    <canvas id="bild" tabindex="0" role="img" aria-label="Spielfeld von oben, dein Kombi unten. Tippe links oder rechts oder drücke die Pfeiltasten, um die Spur zu wechseln. Leuchtende Pfeilfelder geben einen Temposchub."></canvas>
     <div id="hud">
       <div class="hudzeile">
         <button class="rund" id="pauseKnopf" type="button" aria-label="Pause (P)">
@@ -247,16 +248,17 @@
         <button class="btn klein js-zurueck" type="button">Zurück</button>
       </div>
       <ul class="regeln">
-        <li><h3>Handy &amp; Tablet</h3><ul>
-          <li>Finger auf die <b>untere Steuerfläche</b> legen und nach links oder rechts ziehen. Das Auto folgt deiner Bewegung, es springt nicht zum Finger.</li>
-          <li>Loslassen: Das Auto bleibt in seiner Spur.</li></ul></li>
-        <li><h3>Computer</h3><ul>
-          <li>Pfeiltasten ← → oder A / D lenken.</li>
-          <li>Mit der Maus kannst du auf der Straße ziehen.</li>
+        <li><h3>Spurwechsel per Tipp (Standard)</h3><ul>
+          <li>Tippe <b>links</b> oder <b>rechts</b> (unten auf die Steuerfläche oder auf die Straße): Der Kombi wechselt sofort eine Spur.</li>
+          <li>Zweimal schnell tippen = zwei Spuren.</li>
+          <li>Computer: ← → oder A / D, ein Druck = eine Spur. Mausklick links oder rechts auf der Straße geht auch.</li></ul></li>
+        <li><h3>Frei ziehen (wählbar)</h3><ul>
+          <li>Finger auf die Steuerfläche legen und seitlich ziehen; das Auto folgt deiner Bewegung, es springt nicht zum Finger.</li>
+          <li>Computer: ← → gedrückt halten oder mit der Maus auf der Straße ziehen.</li>
           <li>P oder Esc: Pause. M: Ton.</li></ul></li>
         <li><h3>Coup (optional bei Missionen)</h3><p>Tippen, Leertaste oder der IMPULS-Knopf, wenn der Zeiger im hellen Feld steht. Danach die fliegenden Beutetaschen im Ring fangen.</p></li>
         <li><h3>Fahrt</h3><ul>
-          <li>Weiche dem Verkehr aus und verbinde saubere Überholungen zu Serien. Blinkende Autos wechseln gleich die Spur.</li>
+          <li>Weiche dem Verkehr aus – das ist die Hauptaufgabe. In Neon-Endlos wird es mit jedem Kilometer schneller und voller. Verbinde saubere Überholungen zu Serien. Blinkende Autos wechseln gleich die Spur.</li>
           <li>Knapp, aber ohne Berührung vorbei gibt Bonuspunkte – pro Auto einmal.</li>
           <li>Ein Unfall kostet Zustand, beendet aber nicht gleich den Lauf. Ist der Zustand leer, ist Schluss.</li>
           <li><b>Fahre über die leuchtenden Pfeilfelder für einen Temposchub!</b> Sie sind freiwillig – nimm sie nur, wenn der Weg danach frei ist.</li>
@@ -264,6 +266,11 @@
           <li>Streifen kündigen sich unten mit einem blauen Pfeil an. Abstand, Boostfelder und Streckenmarken senken den Druck.</li>
           <li>Ist der Druck voll, hast du ein paar Sekunden, um ihn wieder zu senken.</li></ul></li>
       </ul>
+      <p class="wahltitel" id="steuerTitel">STEUERART</p>
+      <div class="wahl" style="grid-template-columns:1fr 1fr" role="group" aria-labelledby="steuerTitel">
+        <button class="btn klein js-steuerart" type="button" data-wert="spur">Spurwechsel per Tipp</button>
+        <button class="btn klein js-steuerart" type="button" data-wert="ziehen">Frei ziehen</button>
+      </div>
       <label class="schalter"><input type="checkbox" id="knoepfeWahl"> Große Links-/Rechts-Knöpfe zusätzlich anzeigen</label>
       <p class="wahltitel" id="empfTitel">LENKEMPFINDLICHKEIT</p>
       <div class="wahl drei" role="group" aria-labelledby="empfTitel">

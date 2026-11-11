@@ -28,14 +28,16 @@ const ANSICHT = {
 const SPIELER = {
   laenge: 4.75, breite: 2.0,          // sichtbare Karosserie
   trefferLaenge: 4.15, trefferBreite: 1.62, // etwas kleiner: Nähe allein ist kein Unfall
-  seitMax: 12,                         // m/s seitlich (schnell und direkt)
-  seitBeschl: 95,                      // m/s² seitliche Beschleunigung
-  seitBremse: 180,                     // m/s² beim Loslassen/Gegenlenken: kein Nachrutschen
-  zielFaktor: 12,                      // wie stark das Auto dem Fingerziel folgt
+  seitMax: 16,                         // m/s seitlich beim Ziehen (schnell und direkt)
+  seitBeschl: 140,                     // m/s² seitliche Beschleunigung
+  seitBremse: 420,                     // m/s² beim Loslassen/Gegenlenken: kein Nachrutschen
+  zielFaktor: 14,                      // wie stark das Auto dem Fingerziel folgt
   beschl: 9,                           // m/s² bis zur Grundgeschwindigkeit
   boostBeschl: 10,                     // weicher Schub beim Boostfeld
   bremsen: 6,                          // m/s² zurück auf Grundtempo nach dem Boost
   neigungMax: 0.07,                    // rad, kleine Neigung beim Lenken
+  // Spurwechsel per Tipp/Taste: ein Druck = eine Spur, zügig (~0,2 s) und genau in die Spurmitte
+  spurMax: 24, spurBeschl: 320, spurFaktor: 22,
 };
 
 // Boostfelder: leuchtende Pfeilfelder auf einzelnen Spuren, lösen beim Überfahren
@@ -99,39 +101,42 @@ const AUFTRAEGE = {
   endlos: {
     nr: 0, name: 'Neon-Endlos', kurz: 'So weit du kommst',
     text: 'Sofort losfahren: erst ruhig, dann immer dichtere Verkehrsmuster bis zu einer festen Obergrenze.',
-    endlos: true, tempo: 40, tempoMax: 48, dichte: 3.0, dichteMax: 5.6, wechselFaktor: 0.25, wechselMax: 0.75,
-    rampe: [350, 5200],            // ab hier steigt die Schwierigkeit, hier ist die Obergrenze erreicht
-    mindestLuecke: 20, welle: [420, 110],
+    endlos: true, tempo: 40, dichte: 11, wechselFaktor: 0.3,
+    // Es wird immer schneller und voller: Tempo und Dichte steigen ohne feste Obergrenze, die Zunahme
+    // flacht aber ab (Halbwert 9 km), damit es lange spielbar bleibt. Sicherheitsgrenze nur für die Technik.
+    tempoZiel: 80, dichteZiel: 26, wechselZiel: 1.0, halbwert: 9000, tempoSicher: 78,
+    rampe: [300, 4500],            // Verkehrsmuster: hier sind alle Muster voll freigeschaltet
+    mindestLuecke: 10, welle: [480, 70],
     muster: { einzel: 5, paar: 1, versetzt: 2, lkwMix: 1, tor: 0, slalom: 0 },
     musterMax: { einzel: 2, paar: 2, versetzt: 2.5, lkwMix: 1.5, tor: 1.2, slalom: 1.5 },
-    polizei: { max: 1, maxSpaet: 2, erste: 30, pause: 14, tempo: 1.19, seit: 5.5, druck: 8 },
+    polizei: { max: 1, maxSpaet: 2, erste: 30, pause: 14, tempo: 1.19, seit: 5.5, druck: 5 },
     abschnitte: [['boulevard', 900], ['autobahn', 1000], ['kueste', 900], ['tunnel', 700], ['lager', 900]],
     coup: { tempo: 0.6, zone: 0.2 }, erklaeren: true, farbe: '#FF4FD8',
   },
   containerkai: {
     nr: 1, name: 'Containerkai', kurz: 'Einstieg, ca. 65 s',
     text: 'Vom Lagerhafen über die Hafenautobahn: großzügige Lücken, erste Verkehrsmuster.',
-    tempo: 43, dichte: 4.6, wechselFaktor: 0.35, mindestLuecke: 22, welle: [430, 80],
+    tempo: 43, dichte: 17, wechselFaktor: 0.35, mindestLuecke: 10, welle: [450, 70],
     muster: { einzel: 4, paar: 1, versetzt: 2, lkwMix: 1.2, tor: 0.3, slalom: 0.4 },
-    polizei: { max: 1, erste: 18, pause: 14, tempo: 1.18, seit: 5.5, druck: 7 },
+    polizei: { max: 1, erste: 18, pause: 14, tempo: 1.18, seit: 5.5, druck: 4.5 },
     abschnitte: [['lager', 900], ['autobahn', 1050], ['boulevard', 750]],
     coup: { tempo: 0.5, zone: 0.22 }, erklaeren: true, farbe: '#24D6CD',
   },
   neonviertel: {
     nr: 2, name: 'Neonviertel', kurz: 'Dichter Verkehr, ca. 75 s',
     text: 'Neonboulevard und Lichttunnel: dichtere Gruppen, wechselnde Ausweichrichtung.',
-    tempo: 44, dichte: 4.8, wechselFaktor: 0.55, mindestLuecke: 20, welle: [420, 100],
+    tempo: 46, dichte: 20, wechselFaktor: 0.55, mindestLuecke: 10, welle: [460, 70],
     muster: { einzel: 3, paar: 1.5, versetzt: 2.5, lkwMix: 1.2, tor: 0.9, slalom: 1.2 },
-    polizei: { max: 2, erste: 16, pause: 13, tempo: 1.16, seit: 5.5, druck: 9 },
+    polizei: { max: 2, erste: 16, pause: 13, tempo: 1.16, seit: 5.5, druck: 5.5 },
     abschnitte: [['boulevard', 950], ['tunnel', 800], ['boulevard', 700], ['autobahn', 800]],
     coup: { tempo: 0.66, zone: 0.19 }, erklaeren: false, farbe: '#FF4FD8',
   },
   nachthafen: {
     nr: 3, name: 'Nachthafen', kurz: 'Fordernd, ca. 85 s',
     text: 'Küstenstraße, Tunnel, Lagerhafen: anspruchsvolle Muster bei hohem Tempo.',
-    tempo: 46, dichte: 5.2, wechselFaktor: 0.7, mindestLuecke: 19, welle: [450, 100],
+    tempo: 48, dichte: 23, wechselFaktor: 0.7, mindestLuecke: 10, welle: [480, 60],
     muster: { einzel: 2, paar: 1.5, versetzt: 2.5, lkwMix: 1.5, tor: 1.2, slalom: 1.5 },
-    polizei: { max: 2, erste: 14, pause: 10, tempo: 1.19, seit: 6, druck: 10 },
+    polizei: { max: 2, erste: 14, pause: 10, tempo: 1.19, seit: 6, druck: 6 },
     abschnitte: [['kueste', 900], ['tunnel', 750], ['lager', 900], ['boulevard', 900], ['autobahn', 500]],
     coup: { tempo: 0.8, zone: 0.17 }, erklaeren: false, farbe: '#FF9A3D',
   },
@@ -210,8 +215,13 @@ function baueStrecke(auftrag) {
   };
 }
 
-// Schwierigkeit 0…1 im Endlosmodus (weich ansteigend, mit Obergrenze); Missionen: konstant
+// Verkehrsmuster-Freischaltung 0…1 im Endlosmodus; Missionen: alles an
 function schwierigkeit(auftrag, d) {
   if (!auftrag.endlos) return 1;
   return glatt((d - auftrag.rampe[0]) / (auftrag.rampe[1] - auftrag.rampe[0]));
+}
+// Steigerung 0…<1 im Endlosmodus: wächst immer weiter, wird aber langsamer (nie ganz 1)
+function steigerung(auftrag, d) {
+  if (!auftrag.endlos) return 0;
+  return 1 - Math.exp(-Math.max(0, d - auftrag.rampe[0]) / auftrag.halbwert * Math.LN2);
 }

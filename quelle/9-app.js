@@ -102,6 +102,7 @@
     links.hidden = rechts.hidden = !knoepfe;
     $('lenkHinweis').hidden = !(lay.modus === 'unten' || flaeche.className === 'seite');
     aktualisiereSteuerung();
+    if (typeof zeigeSteuerart === 'function') zeigeSteuerart();
     zeichneTitel();
   }
   function aktualisiereSteuerung() {
@@ -115,7 +116,7 @@
     $('lenkHinweis').style.visibility = fahrt ? 'visible' : 'hidden';
     const tipp = $('tastenTipp');
     tipp.innerHTML = coup ? '<b>LEERTASTE</b><br>Impuls / Fangen<br><br><b>P</b> Pause<br><b>M</b> Ton'
-      : '<b>PFEILTASTEN</b><br>oder <b>A</b> / <b>D</b><br>lenken<br><br>Pfeilfelder auf<br>der Straße geben<br><b>BOOST</b><br><br><b>P</b> Pause<br><b>M</b> Ton<br><br>Maus: auf der<br>Straße ziehen';
+      : '<b>PFEILTASTEN</b><br>oder <b>A</b> / <b>D</b><br>Spur wechseln<br>(ein Druck =<br>eine Spur)<br><br>Pfeilfelder auf<br>der Straße geben<br><b>BOOST</b><br><br><b>P</b> Pause<br><b>M</b> Ton<br><br>Maus: links oder<br>rechts klicken';
   }
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', () => setTimeout(layout, 120));
@@ -131,6 +132,7 @@
     return { x: F.sp.x, min: F.X_MIN, max: F.X_MAX, breite: F.X_MAX - F.X_MIN + SPIELER.breite };
   };
   Eingabe.st.empfindlich = Speicher.empfindlich;
+  Eingabe.st.steuerart = Speicher.steuerart;
   Eingabe.st.beiAktion = () => coupAktion();
   Eingabe.st.beiPause = () => { if (zustand === 'pause') weiter(); else if (zustand === 'coup' || zustand === 'fahrt') pause(false); };
   Eingabe.st.beiTon = () => schalteTon();
@@ -139,7 +141,11 @@
     if (e.pointerType === 'touch' && !touchGesehen) { touchGesehen = true; layout(); }
   };
   // Klicks auf die Bühne (Coup: tippen irgendwo)
-  cv.addEventListener('pointerdown', e => { Ton.wecke(); if (e.pointerType === 'touch' && !touchGesehen) { touchGesehen = true; layout(); } if (zustand === 'coup') { e.preventDefault(); coupAktion(); } });
+  cv.addEventListener('pointerdown', e => {
+    Ton.wecke(); if (e.pointerType === 'touch' && !touchGesehen) { touchGesehen = true; layout(); }
+    if (zustand === 'coup') { e.preventDefault(); coupAktion(); }
+    else if (zustand === 'fahrt' && Speicher.steuerart === 'spur') { e.preventDefault(); Eingabe.spurWechsel(e.clientX < lay.sicht.x + lay.sicht.w / 2 ? -1 : 1); }
+  });
   $('aktionKnopf').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); Ton.wecke(); if (zustand === 'coup') coupAktion(); });
   $('aktionKnopf').addEventListener('click', e => e.preventDefault());
   $('ueberspringenKnopf').addEventListener('click', e => { e.stopPropagation(); if (zustand === 'coup' && lauf) { Ton.klick(); starteFahrt(true); } });
@@ -168,9 +174,17 @@
   // Steuerungs-Einstellungen
   $('knoepfeWahl').checked = Speicher.knoepfe;
   $('knoepfeWahl').addEventListener('change', e => { Speicher.knoepfe = e.target.checked; layout(); });
+  function zeigeSteuerart() {
+    document.querySelectorAll('.js-steuerart').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.wert === Speicher.steuerart)));
+    const spur = Speicher.steuerart === 'spur';
+    $('lenkflaeche').classList.toggle('spurmodus', spur && lay.modus === 'unten');
+    $('lenkHinweis').innerHTML = spur ? '<b>◀</b> LINKS TIPPEN &nbsp; &nbsp; RECHTS TIPPEN <b>▶</b>' : '<b>◀</b> HIER ZIEHEN ZUM LENKEN <b>▶</b>';
+  }
+  document.querySelectorAll('.js-steuerart').forEach(b => b.addEventListener('click', () => { Speicher.steuerart = b.dataset.wert; Eingabe.st.steuerart = Speicher.steuerart; Eingabe.leeren(); Ton.klick(); zeigeSteuerart(); }));
   function zeigeEmpf() { document.querySelectorAll('.js-empf').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.wert) === Speicher.empfindlich))); }
   document.querySelectorAll('.js-empf').forEach(b => b.addEventListener('click', () => { Speicher.empfindlich = Number(b.dataset.wert); Eingabe.st.empfindlich = Speicher.empfindlich; Ton.klick(); zeigeEmpf(); }));
   zeigeEmpf();
+  zeigeSteuerart();
 
   // ---------------------------------------------------------------
   // Fenster
@@ -287,7 +301,7 @@
     $('hudRestTitel').textContent = lauf.id === 'endlos' ? 'STRECKE' : 'ZIEL';
     setzeZustand('fahrt');
     melde(lauf.id === 'endlos' ? 'NEON-ENDLOS' : `MISSION ${lauf.A.nr}\n${lauf.A.name.toUpperCase()}`, 1.0, 'gross');
-    zeigeHinweis('lenken', touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: Pfeiltasten oder A / D.', 3.5, true);
+    zeigeHinweis('lenken', Speicher.steuerart === 'spur' ? (touchGesehen ? 'Tippe links oder rechts: sofort eine Spur weiter!' : '← → oder A / D: ein Druck = eine Spur.') : (touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: Pfeiltasten oder A / D halten.'), 3.5, true);
   }
   function coupAktion() {
     if (zustand !== 'coup' || !lauf || !lauf.coup) return;
@@ -547,6 +561,11 @@
       }
       const e = botEingabe ? botEingabe() : Eingabe.lesen();
       lauf.fahrt.schritt(e);
+      if (lauf.id === 'endlos') {
+        const kmh = Math.floor(lauf.fahrt.w.vGrund * 3.6 / 20) * 20;
+        if (!lauf.kmhMarke) lauf.kmhMarke = kmh;
+        if (kmh > lauf.kmhMarke) { lauf.kmhMarke = kmh; melde(`TEMPO ${kmh} KM/H!`, 1.3); Ton.marke(); }
+      }
       if (lauf.fahrt.w.felder.some(f => f.status === 'offen' && f.d - lauf.fahrt.sp.d < ANSICHT.vorne)) zeigeHinweis('felder', 'Fahre über die leuchtenden Pfeilfelder für einen Temposchub!', 4, true);
       lauf.gesamtZeit += dt;
       verarbeiteFahrtEreignisse();

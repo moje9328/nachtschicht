@@ -257,9 +257,9 @@ function erstelleFahrt(auftragId, optionen = {}) {
     for (const k of Object.keys(A.muster)) m[k] = A.endlos ? mische(A.muster[k], A.musterMax[k], u) : A.muster[k];
     return {
       u, muster: m,
-      dichte: A.endlos ? mische(A.dichte, A.dichteMax, u) : A.dichte,
-      wechsel: A.endlos ? mische(A.wechselFaktor, A.wechselMax, u) : A.wechselFaktor,
-      tempo: A.endlos ? mische(A.tempo, A.tempoMax, u) : A.tempo,
+      dichte: A.endlos ? mische(A.dichte, A.dichteZiel, steigerung(A, sp.d)) : A.dichte,
+      wechsel: A.endlos ? mische(A.wechselFaktor, A.wechselZiel, steigerung(A, sp.d)) : A.wechselFaktor,
+      tempo: A.endlos ? Math.min(A.tempoSicher, mische(A.tempo, A.tempoZiel, steigerung(A, sp.d))) : A.tempo,
     };
   }
   // Rhythmus: intensive Abschnitte im Wechsel mit kurzer Entlastung (nie ganz leer)
@@ -277,6 +277,14 @@ function erstelleFahrt(auftragId, optionen = {}) {
       if (a.d > kand.d && a.v < kand.v - 0.3) kand.v = kand.vSoll = Math.min(kand.v, a.v);
     }
     return kand.v < vGrund - 6;   // Verkehr bleibt deutlich langsamer als der Spieler
+  }
+  function reihenfolgeOk(kand) {
+    for (const a of w.autos) {
+      if (!belegtSpur(a, kand.spur)) continue;
+      if (a.d < kand.d && a.v > kand.v + 0.3) return false;   // hinten schneller → würde auffahren
+      if (a.d > kand.d && a.v < kand.v - 0.3) return false;   // vorne langsamer → würde aufholen
+    }
+    return true;
   }
   const klein = () => (rnd() < 0.55 ? 'kugel' : 'taxi');
   const tempoVon = typ => rnd.zwischen(FAHRZEUGE[typ].tempo[0], FAHRZEUGE[typ].tempo[1]) * vGrund / TEMPO_BEZUG;
@@ -311,24 +319,36 @@ function erstelleFahrt(auftragId, optionen = {}) {
     return g;
   }
   function versucheSpawn() {
-    const dSpawn = sp.d + SPAWN_MIN + rnd() * 18;
+    const dSpawn = sp.d + SPAWN_MIN + rnd() * 32;
     if (dSpawn > strecke.zielVon - 130) return;
     if (sp.d < 120 && A.erklaeren) return;   // kurzer ruhiger Start
     const ab = strecke.abschnittBei(dSpawn);
     const st = stand();
     const ziel = st.dichte * ab.dichte * welle(dSpawn);
+    // Dichte = Autos je 100 m Straße vor dem Spieler (bis zur Spawnzone)
     let vorne = 0;
-    for (const a of w.autos) if (a.d > sp.d - 6 && a.d < sp.d + SPAWN_MIN + 45) vorne++;
-    if (vorne >= ziel) return;
+    for (const a of w.autos) if (a.d > sp.d - 6 && a.d < sp.d + SPAWN_MIN + 26) vorne++;
+    if (vorne >= ziel * (SPAWN_MIN + 32) / 100) return;
     w.pruefung.versuche++;
     // In der Entlastung nur Einzelautos
     const muster = welle(dSpawn) < 1 ? 'einzel' : musterWahl(st.muster);
-    // höchstens zwei Kandidaten pro Versuch (Rechenzeit begrenzen); sonst beim nächsten Versuch
-    const spuren = [...Array(SP).keys()].sort(() => rnd() - 0.5).slice(0, 2);
+    // alle Spuren als Kandidaten (die Wegsuche ist schnell genug)
+    const spuren = [...Array(SP).keys()].sort(() => rnd() - 0.5);
     for (const s0 of spuren) {
       const gruppe = baueGruppe(muster, s0, dSpawn, ab);
-      if (!gruppe.every(passtInSpur)) continue;
-      if (muster !== 'einzel' && muster !== 'lkwMix') { const vMin = Math.min(...gruppe.map(a => a.v)); for (const a of gruppe) a.v = a.vSoll = vMin; }
+      if (!gruppe.every(passtInSpur)) { w.pruefung.luecke = (w.pruefung.luecke || 0) + 1; continue; }
+      if (muster !== 'einzel' && muster !== 'lkwMix') {
+        // gemeinsames Tempo im Bereich, den alle Spuren der Gruppe erlauben (niemand holt später jemanden ein)
+        let lo = 0, hi = vGrund - 6;
+        for (const g of gruppe) for (const a of w.autos) {
+          if (!belegtSpur(a, g.spur)) continue;
+          if (a.d < g.d) lo = Math.max(lo, a.v); else hi = Math.min(hi, a.v);
+        }
+        if (lo > hi + 1e-9) { w.pruefung.tempoBereich = (w.pruefung.tempoBereich || 0) + 1; continue; }
+        const v = klemme(Math.min(...gruppe.map(a => a.v)), lo, hi);
+        for (const a of gruppe) a.v = a.vSoll = v;
+      }
+      if (!gruppe.every(reihenfolgeOk)) { w.pruefung.reihenfolge = (w.pruefung.reihenfolge || 0) + 1; continue; }
       if (!fair(gruppe, null)) { w.pruefung.abgelehnt++; continue; }
       for (const a of gruppe) w.autos.push(a);
       w.statistik.muster[muster] = (w.statistik.muster[muster] || 0) + 1;
@@ -556,16 +576,24 @@ function erstelleFahrt(auftragId, optionen = {}) {
     if (warAn && !sp.boostAn) sende('boostEnde');
     if (sp.boostAn) w.statistik.boostZeit += DT;
     // Längs: automatisch auf Grundtempo, mit Boostfeld bis +30 %; im Ziel ausrollen
-    const vZiel = imZiel ? 0 : vGrund * (1 + (BOOST.faktor - 1) * glatt(sp.boostAnteil));
+    let vZiel = imZiel ? 0 : vGrund * (1 + (BOOST.faktor - 1) * glatt(sp.boostAnteil));
+    // Klebt der Kombi direkt am Heck eines Autos, beschleunigt er nicht weiter hinein (kein Dauerrempeln) –
+    // vorbei kommt man durch einen Spurwechsel
+    for (const a of w.autos) {
+      if (a.d <= sp.d || Math.abs(a.x - sp.x) > (a.breite * 0.88 + SPIELER.trefferBreite) / 2) continue;
+      const luecke = a.d - sp.d - (a.laenge * 0.92 + SPIELER.trefferLaenge) / 2;
+      if (luecke < 0.8) vZiel = Math.min(vZiel, a.v + (a.stoss || 0));
+    }
     if (sp.v < vZiel) sp.v = Math.min(vZiel, sp.v + (sp.boostAn ? SPIELER.boostBeschl : SPIELER.beschl) * DT);
     else sp.v = Math.max(vZiel, sp.v - (imZiel ? 9 : SPIELER.bremsen) * DT);
     w.statistik.maxTempo = Math.max(w.statistik.maxTempo, sp.v);
     // Quer: Finger-Ziel (relativ), Richtungstasten oder ausrollen – kein automatischer Spurwechsel
     let vxw = 0;
     if (imZiel) vxw = 0;
+    else if (e.ziel != null && e.spur) vxw = klemme((klemme(e.ziel, X_MIN, X_MAX) - sp.x) * SPIELER.spurFaktor, -SPIELER.spurMax, SPIELER.spurMax);
     else if (e.ziel != null) vxw = klemme((klemme(e.ziel, X_MIN, X_MAX) - sp.x) * SPIELER.zielFaktor, -SPIELER.seitMax, SPIELER.seitMax);
     else if (e.richtung) vxw = e.richtung * SPIELER.seitMax;
-    const seitA = (vxw === 0 || Math.sign(vxw) !== Math.sign(sp.vx)) ? SPIELER.seitBremse : SPIELER.seitBeschl;
+    const seitA = e.spur ? SPIELER.spurBeschl : (vxw === 0 || Math.sign(vxw) !== Math.sign(sp.vx)) ? SPIELER.seitBremse : SPIELER.seitBeschl;
     sp.vx += klemme(vxw - sp.vx, -seitA * DT, seitA * DT);
     sp.x += sp.vx * DT;
     if (sp.x < X_MIN || sp.x > X_MAX) {
@@ -575,7 +603,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       if (!imZiel) sp.v *= Math.pow(SCHADEN.leitplanke, DT * 60);
     }
     if (sp.planke > 0) sp.planke -= DT;
-    sp.neigung += ((sp.vx / SPIELER.seitMax) * SPIELER.neigungMax - sp.neigung) * Math.min(1, DT * 14);
+    sp.neigung += (klemme(sp.vx / SPIELER.seitMax, -1.4, 1.4) * SPIELER.neigungMax - sp.neigung) * Math.min(1, DT * 14);
     const dAlt = sp.d;
     sp.d += sp.v * DT;
     // Boostfelder: Überfahrt in Weltkoordinaten, über die ganze in diesem Schritt gefahrene Strecke
@@ -744,8 +772,8 @@ function erstelleFahrt(auftragId, optionen = {}) {
   function schritt(eingabe = {}) {
     if (w.phase === 'fertig') return;
     w.zeit += DT; w.phaseZeit += DT;
-    // Endlos: Grundtempo folgt weich der Schwierigkeit (Obergrenze A.tempoMax)
-    if (A.endlos && w.phase === 'fahrt') { vGrund = Math.min(A.tempoMax, vGrund + klemme(stand().tempo - vGrund, -0.5 * DT, 0.5 * DT)); w.vGrund = vGrund; }
+    // Endlos: Grundtempo steigt weich mit der Strecke – immer weiter, aber abflachend
+    if (A.endlos && w.phase === 'fahrt') { vGrund = vGrund + klemme(stand().tempo - vGrund, -0.5 * DT, 0.5 * DT); w.vGrund = vGrund; }
     aktualisiereSpieler(eingabe);
     aktualisiereVerkehr();
     aktualisierePolizei();
@@ -755,7 +783,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       w.punkte.strecke += sp.v * DT * PUNKTE.proMeter * (sp.boostAn ? PUNKTE.boostFaktor : 1);
       druckUndWarnung();
       w.spawnUhr -= DT;
-      if (w.spawnUhr <= 0) { w.spawnUhr = 0.3; versucheSpawn(); planeFelder(); }
+      if (w.spawnUhr <= 0) { w.spawnUhr = 0.15; versucheSpawn(); planeFelder(); }
       planePolizei(DT);
       while (sp.d >= strecke.marke(w.markeNr)) {
         w.markeNr++; w.punkte.marken += PUNKTE.marke;

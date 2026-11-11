@@ -14,7 +14,7 @@ const Speicher = (() => {
   const STANDARD = () => ({
     v: VERSION,
     ton: true, effekte: 0.8, musik: 0.45,
-    knoepfe: false, empfindlich: 1,
+    knoepfe: false, empfindlich: 1, steuerart: 'spur',
     coupEinstieg: false,
     auftrag: 'containerkai',
     beste: { endlos: leer(), containerkai: leer(), neonviertel: leer(), nachthafen: leer() },
@@ -32,6 +32,7 @@ const Speicher = (() => {
     daten.musik = zahl(d.musik, 0, 1, s.musik);
     daten.knoepfe = typeof d.knoepfe === 'boolean' ? d.knoepfe : s.knoepfe;
     daten.empfindlich = [0.7, 1, 1.35].includes(d.empfindlich) ? d.empfindlich : 1;
+    daten.steuerart = d.steuerart === 'ziehen' ? 'ziehen' : 'spur';
     daten.auftrag = AUFTRAG_LISTE.includes(d.auftrag) ? d.auftrag : s.auftrag;
   }
   function bestwerteAus(q) {
@@ -95,6 +96,6 @@ const Speicher = (() => {
     verfuegbar: () => verfuegbar,
     neuLaden: lade,
   };
-  for (const n of ['ton', 'effekte', 'musik', 'knoepfe', 'empfindlich', 'coupEinstieg', 'auftrag']) Object.defineProperty(api, n, einstellung(n));
+  for (const n of ['ton', 'effekte', 'musik', 'knoepfe', 'empfindlich', 'steuerart', 'coupEinstieg', 'auftrag']) Object.defineProperty(api, n, einstellung(n));
   return api;
 })();

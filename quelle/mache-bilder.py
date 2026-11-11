@@ -20,7 +20,7 @@ async def main():
             png.unlink()
         # 1: Neonboulevard mit dichtem Verkehr und Boostfeld
         await pg.evaluate(f"{N}.starte('endlos', false)")
-        await pg.evaluate(f'{N}.erstelleBot({{}})')
+        await pg.evaluate(f'{N}.erstelleBot({{ spur: True }})'.replace('True', 'true'))
         await pg.wait_for_function(f"{N}.fahrt() && {N}.fahrt().sp.d > 1200 && {N}.fahrt().w.autos.filter(a => a.d > {N}.fahrt().sp.d && a.d < {N}.fahrt().sp.d + 45).length >= 4", polling='raf', timeout=90000)
         await pg.evaluate(f"(() => {{ const F = {N}.fahrt(); F.sp.d = 4400 * 2 + 300; }})()")
         await pg.wait_for_function(f"{N}.fahrt().w.autos.filter(a => a.d > {N}.fahrt().sp.d && a.d < {N}.fahrt().sp.d + 45).length >= 4 && {N}.fahrt().w.felder.some(f => f.status === 'offen' && f.d > {N}.fahrt().sp.d + 8 && f.d < {N}.fahrt().sp.d + 40)", polling='raf', timeout=120000)

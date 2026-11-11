@@ -14,17 +14,19 @@ const Testfahrer = {
     function abstand(px, pd, b, bx, bd) {
       const gx = Math.abs(px - bx) - (SPIELER.trefferBreite + b.breite * 0.9) / 2;
       const gd = Math.abs(pd - bd) - (SPIELER.trefferLaenge + b.laenge * 0.92) / 2;
-      if (gx < 0.3 && gd < 0.4) return -1;
+      if (gx < 0.25 && gd < 0) return -1;
       return Math.max(gx, gd / 4);
     }
     function bewerte(X, v) {
       let x = sp.x, vx = sp.vx, min = 4;
       const hind = w.autos.filter(a => a.d - sp.d < sicht && a.d > sp.d - 12).concat(w.polizei);
       for (let t = 0.05; t <= horizont + 0.0001; t += 0.05) {
-        const vxw = Math.max(-SPIELER.seitMax, Math.min(SPIELER.seitMax, (X - x) * SPIELER.zielFaktor));
-        vx += Math.max(-SPIELER.seitBeschl * 0.05, Math.min(SPIELER.seitBeschl * 0.05, vxw - vx));
+        const vm = opt.spur ? SPIELER.spurMax : SPIELER.seitMax, fk = opt.spur ? SPIELER.spurFaktor : SPIELER.zielFaktor, ac = opt.spur ? SPIELER.spurBeschl : SPIELER.seitBeschl;
+        const vxw = Math.max(-vm, Math.min(vm, (X - x) * fk));
+        vx += Math.max(-ac * 0.05, Math.min(ac * 0.05, vxw - vx));
         x += vx * 0.05;
-        const pd = sp.d + v * t;
+        // tatsächliches Tempo, das mit der Spielbeschleunigung auf v ansteigt
+        const pd = sp.d + (sp.v >= v ? v * t : (t < (v - sp.v) / SPIELER.beschl ? sp.v * t + SPIELER.beschl * t * t / 2 : (v * v - sp.v * sp.v) / (2 * SPIELER.beschl) + v * (t - (v - sp.v) / SPIELER.beschl)));
         for (const b of hind) {
           const a = abstand(x, pd, b, F.autoX(b, t), b.d + b.v * t);
           const g = t < 1 ? 1 : 0.85;
@@ -39,7 +41,7 @@ const Testfahrer = {
       if (uhr <= 0) {
         uhr = opt.reaktion || 0.1;
         const kand = [sp.x];
-        for (let s = 0; s < w.SP; s++) { const c = spurX(s, w.SP); kand.push(c, c - 0.9, c + 0.9); }
+        for (let s = 0; s < w.SP; s++) { const c = spurX(s, w.SP); if (opt.spur) kand.push(c); else kand.push(c, c - 0.9, c + 0.9); }
         // Boostfelder ansteuern (Standard), wenn der Weg dorthin sicher ist; opt.felder === false ignoriert sie
         const feld = opt.felder === false || opt.felder === 'meiden' ? null : w.felder.find(f => f.status === 'offen' && f.d - sp.d > 4 && f.d - sp.d < (opt.sicht || ANSICHT.vorne));
         let best = sp.x, bw = -1e9;
@@ -52,6 +54,10 @@ const Testfahrer = {
           if (b > bw) { bw = b; best = xx; }
         }
         ziel = best + (opt.zittern ? (zufallBot() - 0.5) * opt.zittern : 0);
+      }
+      if (opt.spur) {   // wie ein Mensch mit Spurwechsel-Tipps: Ziel ist immer eine Spurmitte
+        let best = 0, bd = 1e9; for (let s2 = 0; s2 < w.SP; s2++) { const dd = Math.abs(spurX(s2, w.SP) - ziel); if (dd < bd) { bd = dd; best = s2; } }
+        return { ziel: spurX(best, w.SP), spur: true };
       }
       return { ziel: opt.tasten ? null : ziel, richtung: opt.tasten ? Math.sign(Math.round((ziel - sp.x) * 3)) : 0 };
     };

@@ -125,3 +125,32 @@ GitHub-Repo `moje9328/nachtschicht` anlegen, Pages aus main /, pushen; in `~/spi
 - Browser-Langlauf: 648 s Endlos ohne Fehler, max. 12 Autos und 14 Partikel.
 
 **Nicht geprüft:** Ich habe die Musik nicht angehört, nur gemessen. Kein echtes Handy und keine echten Touch-Gesten, nur CDP-Emulation. Schwierigkeit und Gefühl wurden nur mit Bots abgestimmt, nicht mit Menschen.
+
+## Runde 4 (11.11.2026): Spurwechsel per Klick, viel mehr Verkehr, Endlos wird immer schneller
+
+**Wunsch:** Noch viel mehr Verkehr. Ein Klick links/rechts wechselt direkt die Spur. Hauptaufgabe ist das Ausweichen, und es soll immer schwieriger und schneller werden.
+
+**Änderungen:**
+- **Steuerung** (`8-eingabe.js`, Speicher `steuerart`, Standard `spur`):
+  - Ein Tipp oder Klick links bzw. rechts (Steuerfläche oder Straße), ←/→ oder A/D wechselt genau eine Spur. Mehrere Drücke ergeben mehrere Spuren.
+  - Halten wiederholt nicht.
+  - Ein Spurwechsel dauert ca. 0,2 s (`SPIELER.spurMax` 24 m/s, `spurBeschl` 320) und endet genau in der Spurmitte.
+  - „Frei ziehen“ ist in „Steuerung“ wählbar und ebenfalls schneller (16 m/s).
+- **Verkehr:**
+  - Die Dichte bezieht sich jetzt auf die Strecke bis zur Spawnzone.
+  - Missionen 17/20/23, Endlos startet bei 11.
+  - Mindestlücke in einer Spur 10 m, Spawnversuche alle 0,15 s auf allen Spuren.
+  - Gruppentempo wird im erlaubten Bereich gewählt, damit niemand später aufholt (Fehler gefunden: Gruppen konnten schneller als ein Auto davor sein).
+  - Im Bild sind jetzt im Schnitt 5,4–6,0 Autos (vorher 2,5–2,9).
+- **Endlos:** Tempo, Dichte und Spurwechsel-Häufigkeit steigen ohne feste Grenze, aber abflachend (`steigerung`, Halbwert 9 km). Grob: 144 km/h am Start, ~180 bei 5 km, ~230 bei 15 km. Technische Sicherheitsgrenze 78 m/s. Meldung „TEMPO … KM/H!“ alle 20 km/h.
+- **Kein Dauerrempeln:** Klebt der Kombi am Heck eines Autos, beschleunigt er nicht weiter hinein (Fehler gefunden: über 80 s Dauerberührung hinter einem blockierten Auto).
+- **Streifen:** bauen weniger Druck auf (4,5–6), weil Ausweichen die Hauptaufgabe ist.
+
+**Tests:**
+- Logik 180/180. Neu: Spurwechsel in ≤ 0,28 s ohne Überschwingen, Endlos immer schneller, kein langes Hängen hinter Autos (< 12 % der Zeit, < 12 s am Stück). Der Fairness-Test zählt keine Lagen direkt nach eigenen Unfällen oder beim freiwilligen Hinterherfahren.
+- Browser Chromium 143/143, WebKit 136/136. Neu: Tipp links/rechts, zwei Tipps, Tipp auf die Straße, Pfeiltaste einmal/halten/zweimal, Mausklick, Ziehen-Modus.
+- Bots mit Spurwechsel-Tipps:
+  - menschenähnlich: Missionen 6/6, 6/6, 6/6; Endlos 2,5–4,5 min.
+  - schwächer: 6/6, 4/6, 5/6; Endlos 1,2–3,3 min.
+
+**Nicht geprüft:** echtes Handy; Gefühl des Spurwechsels mit echten Fingern; ob die Dichte für Menschen zu hoch ist (bisher nur Bots).

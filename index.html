@@ -299,6 +299,7 @@
   }
   #lenkflaeche.unsichtbar { background: none; border: 0; }
   #lenkflaeche.seite { border-top: 0; border-right: 2px solid rgba(47, 90, 133, 0.7); }
+  #lenkflaeche.spurmodus::after { content: ''; position: absolute; left: 50%; top: 12px; bottom: 12px; width: 2px; background: rgba(36, 214, 205, 0.35); pointer-events: none; }
   #lenkHinweis { position: absolute; left: 0; right: 0; top: 10px; text-align: center; color: var(--muted); font: 8px/1.6 var(--retro); pointer-events: none; opacity: 0.85; }
   #lenkHinweis b { color: var(--tuerkis); font-weight: 400; }
   .steuerknopf {
@@ -384,7 +385,7 @@
 <div id="sicherProbe"></div>
 <div id="app">
   <main id="buehne">
-    <canvas id="bild" tabindex="0" role="img" aria-label="Spielfeld: Straße von leicht schräg oben, dein Kombi unten. Ziehen auf der Steuerfläche, Pfeiltasten oder A und D lenken. Leuchtende Pfeilfelder auf der Straße geben einen Temposchub."></canvas>
+    <canvas id="bild" tabindex="0" role="img" aria-label="Spielfeld von oben, dein Kombi unten. Tippe links oder rechts oder drücke die Pfeiltasten, um die Spur zu wechseln. Leuchtende Pfeilfelder geben einen Temposchub."></canvas>
     <div id="hud">
       <div class="hudzeile">
         <button class="rund" id="pauseKnopf" type="button" aria-label="Pause (P)">
@@ -474,16 +475,17 @@
         <button class="btn klein js-zurueck" type="button">Zurück</button>
       </div>
       <ul class="regeln">
-        <li><h3>Handy &amp; Tablet</h3><ul>
-          <li>Finger auf die <b>untere Steuerfläche</b> legen und nach links oder rechts ziehen. Das Auto folgt deiner Bewegung, es springt nicht zum Finger.</li>
-          <li>Loslassen: Das Auto bleibt in seiner Spur.</li></ul></li>
-        <li><h3>Computer</h3><ul>
-          <li>Pfeiltasten ← → oder A / D lenken.</li>
-          <li>Mit der Maus kannst du auf der Straße ziehen.</li>
+        <li><h3>Spurwechsel per Tipp (Standard)</h3><ul>
+          <li>Tippe <b>links</b> oder <b>rechts</b> (unten auf die Steuerfläche oder auf die Straße): Der Kombi wechselt sofort eine Spur.</li>
+          <li>Zweimal schnell tippen = zwei Spuren.</li>
+          <li>Computer: ← → oder A / D, ein Druck = eine Spur. Mausklick links oder rechts auf der Straße geht auch.</li></ul></li>
+        <li><h3>Frei ziehen (wählbar)</h3><ul>
+          <li>Finger auf die Steuerfläche legen und seitlich ziehen; das Auto folgt deiner Bewegung, es springt nicht zum Finger.</li>
+          <li>Computer: ← → gedrückt halten oder mit der Maus auf der Straße ziehen.</li>
           <li>P oder Esc: Pause. M: Ton.</li></ul></li>
         <li><h3>Coup (optional bei Missionen)</h3><p>Tippen, Leertaste oder der IMPULS-Knopf, wenn der Zeiger im hellen Feld steht. Danach die fliegenden Beutetaschen im Ring fangen.</p></li>
         <li><h3>Fahrt</h3><ul>
-          <li>Weiche dem Verkehr aus und verbinde saubere Überholungen zu Serien. Blinkende Autos wechseln gleich die Spur.</li>
+          <li>Weiche dem Verkehr aus – das ist die Hauptaufgabe. In Neon-Endlos wird es mit jedem Kilometer schneller und voller. Verbinde saubere Überholungen zu Serien. Blinkende Autos wechseln gleich die Spur.</li>
           <li>Knapp, aber ohne Berührung vorbei gibt Bonuspunkte – pro Auto einmal.</li>
           <li>Ein Unfall kostet Zustand, beendet aber nicht gleich den Lauf. Ist der Zustand leer, ist Schluss.</li>
           <li><b>Fahre über die leuchtenden Pfeilfelder für einen Temposchub!</b> Sie sind freiwillig – nimm sie nur, wenn der Weg danach frei ist.</li>
@@ -491,6 +493,11 @@
           <li>Streifen kündigen sich unten mit einem blauen Pfeil an. Abstand, Boostfelder und Streckenmarken senken den Druck.</li>
           <li>Ist der Druck voll, hast du ein paar Sekunden, um ihn wieder zu senken.</li></ul></li>
       </ul>
+      <p class="wahltitel" id="steuerTitel">STEUERART</p>
+      <div class="wahl" style="grid-template-columns:1fr 1fr" role="group" aria-labelledby="steuerTitel">
+        <button class="btn klein js-steuerart" type="button" data-wert="spur">Spurwechsel per Tipp</button>
+        <button class="btn klein js-steuerart" type="button" data-wert="ziehen">Frei ziehen</button>
+      </div>
       <label class="schalter"><input type="checkbox" id="knoepfeWahl"> Große Links-/Rechts-Knöpfe zusätzlich anzeigen</label>
       <p class="wahltitel" id="empfTitel">LENKEMPFINDLICHKEIT</p>
       <div class="wahl drei" role="group" aria-labelledby="empfTitel">
@@ -568,14 +575,16 @@ const ANSICHT = {
 const SPIELER = {
   laenge: 4.75, breite: 2.0,          // sichtbare Karosserie
   trefferLaenge: 4.15, trefferBreite: 1.62, // etwas kleiner: Nähe allein ist kein Unfall
-  seitMax: 12,                         // m/s seitlich (schnell und direkt)
-  seitBeschl: 95,                      // m/s² seitliche Beschleunigung
-  seitBremse: 180,                     // m/s² beim Loslassen/Gegenlenken: kein Nachrutschen
-  zielFaktor: 12,                      // wie stark das Auto dem Fingerziel folgt
+  seitMax: 16,                         // m/s seitlich beim Ziehen (schnell und direkt)
+  seitBeschl: 140,                     // m/s² seitliche Beschleunigung
+  seitBremse: 420,                     // m/s² beim Loslassen/Gegenlenken: kein Nachrutschen
+  zielFaktor: 14,                      // wie stark das Auto dem Fingerziel folgt
   beschl: 9,                           // m/s² bis zur Grundgeschwindigkeit
   boostBeschl: 10,                     // weicher Schub beim Boostfeld
   bremsen: 6,                          // m/s² zurück auf Grundtempo nach dem Boost
   neigungMax: 0.07,                    // rad, kleine Neigung beim Lenken
+  // Spurwechsel per Tipp/Taste: ein Druck = eine Spur, zügig (~0,2 s) und genau in die Spurmitte
+  spurMax: 24, spurBeschl: 320, spurFaktor: 22,
 };
 
 // Boostfelder: leuchtende Pfeilfelder auf einzelnen Spuren, lösen beim Überfahren
@@ -639,39 +648,42 @@ const AUFTRAEGE = {
   endlos: {
     nr: 0, name: 'Neon-Endlos', kurz: 'So weit du kommst',
     text: 'Sofort losfahren: erst ruhig, dann immer dichtere Verkehrsmuster bis zu einer festen Obergrenze.',
-    endlos: true, tempo: 40, tempoMax: 48, dichte: 3.0, dichteMax: 5.6, wechselFaktor: 0.25, wechselMax: 0.75,
-    rampe: [350, 5200],            // ab hier steigt die Schwierigkeit, hier ist die Obergrenze erreicht
-    mindestLuecke: 20, welle: [420, 110],
+    endlos: true, tempo: 40, dichte: 11, wechselFaktor: 0.3,
+    // Es wird immer schneller und voller: Tempo und Dichte steigen ohne feste Obergrenze, die Zunahme
+    // flacht aber ab (Halbwert 9 km), damit es lange spielbar bleibt. Sicherheitsgrenze nur für die Technik.
+    tempoZiel: 80, dichteZiel: 26, wechselZiel: 1.0, halbwert: 9000, tempoSicher: 78,
+    rampe: [300, 4500],            // Verkehrsmuster: hier sind alle Muster voll freigeschaltet
+    mindestLuecke: 10, welle: [480, 70],
     muster: { einzel: 5, paar: 1, versetzt: 2, lkwMix: 1, tor: 0, slalom: 0 },
     musterMax: { einzel: 2, paar: 2, versetzt: 2.5, lkwMix: 1.5, tor: 1.2, slalom: 1.5 },
-    polizei: { max: 1, maxSpaet: 2, erste: 30, pause: 14, tempo: 1.19, seit: 5.5, druck: 8 },
+    polizei: { max: 1, maxSpaet: 2, erste: 30, pause: 14, tempo: 1.19, seit: 5.5, druck: 5 },
     abschnitte: [['boulevard', 900], ['autobahn', 1000], ['kueste', 900], ['tunnel', 700], ['lager', 900]],
     coup: { tempo: 0.6, zone: 0.2 }, erklaeren: true, farbe: '#FF4FD8',
   },
   containerkai: {
     nr: 1, name: 'Containerkai', kurz: 'Einstieg, ca. 65 s',
     text: 'Vom Lagerhafen über die Hafenautobahn: großzügige Lücken, erste Verkehrsmuster.',
-    tempo: 43, dichte: 4.6, wechselFaktor: 0.35, mindestLuecke: 22, welle: [430, 80],
+    tempo: 43, dichte: 17, wechselFaktor: 0.35, mindestLuecke: 10, welle: [450, 70],
     muster: { einzel: 4, paar: 1, versetzt: 2, lkwMix: 1.2, tor: 0.3, slalom: 0.4 },
-    polizei: { max: 1, erste: 18, pause: 14, tempo: 1.18, seit: 5.5, druck: 7 },
+    polizei: { max: 1, erste: 18, pause: 14, tempo: 1.18, seit: 5.5, druck: 4.5 },
     abschnitte: [['lager', 900], ['autobahn', 1050], ['boulevard', 750]],
     coup: { tempo: 0.5, zone: 0.22 }, erklaeren: true, farbe: '#24D6CD',
   },
   neonviertel: {
     nr: 2, name: 'Neonviertel', kurz: 'Dichter Verkehr, ca. 75 s',
     text: 'Neonboulevard und Lichttunnel: dichtere Gruppen, wechselnde Ausweichrichtung.',
-    tempo: 44, dichte: 4.8, wechselFaktor: 0.55, mindestLuecke: 20, welle: [420, 100],
+    tempo: 46, dichte: 20, wechselFaktor: 0.55, mindestLuecke: 10, welle: [460, 70],
     muster: { einzel: 3, paar: 1.5, versetzt: 2.5, lkwMix: 1.2, tor: 0.9, slalom: 1.2 },
-    polizei: { max: 2, erste: 16, pause: 13, tempo: 1.16, seit: 5.5, druck: 9 },
+    polizei: { max: 2, erste: 16, pause: 13, tempo: 1.16, seit: 5.5, druck: 5.5 },
     abschnitte: [['boulevard', 950], ['tunnel', 800], ['boulevard', 700], ['autobahn', 800]],
     coup: { tempo: 0.66, zone: 0.19 }, erklaeren: false, farbe: '#FF4FD8',
   },
   nachthafen: {
     nr: 3, name: 'Nachthafen', kurz: 'Fordernd, ca. 85 s',
     text: 'Küstenstraße, Tunnel, Lagerhafen: anspruchsvolle Muster bei hohem Tempo.',
-    tempo: 46, dichte: 5.2, wechselFaktor: 0.7, mindestLuecke: 19, welle: [450, 100],
+    tempo: 48, dichte: 23, wechselFaktor: 0.7, mindestLuecke: 10, welle: [480, 60],
     muster: { einzel: 2, paar: 1.5, versetzt: 2.5, lkwMix: 1.5, tor: 1.2, slalom: 1.5 },
-    polizei: { max: 2, erste: 14, pause: 10, tempo: 1.19, seit: 6, druck: 10 },
+    polizei: { max: 2, erste: 14, pause: 10, tempo: 1.19, seit: 6, druck: 6 },
     abschnitte: [['kueste', 900], ['tunnel', 750], ['lager', 900], ['boulevard', 900], ['autobahn', 500]],
     coup: { tempo: 0.8, zone: 0.17 }, erklaeren: false, farbe: '#FF9A3D',
   },
@@ -750,10 +762,15 @@ function baueStrecke(auftrag) {
   };
 }
 
-// Schwierigkeit 0…1 im Endlosmodus (weich ansteigend, mit Obergrenze); Missionen: konstant
+// Verkehrsmuster-Freischaltung 0…1 im Endlosmodus; Missionen: alles an
 function schwierigkeit(auftrag, d) {
   if (!auftrag.endlos) return 1;
   return glatt((d - auftrag.rampe[0]) / (auftrag.rampe[1] - auftrag.rampe[0]));
+}
+// Steigerung 0…<1 im Endlosmodus: wächst immer weiter, wird aber langsamer (nie ganz 1)
+function steigerung(auftrag, d) {
+  if (!auftrag.endlos) return 0;
+  return 1 - Math.exp(-Math.max(0, d - auftrag.rampe[0]) / auftrag.halbwert * Math.LN2);
 }
 
 // ===================================================================
@@ -1131,9 +1148,9 @@ function erstelleFahrt(auftragId, optionen = {}) {
     for (const k of Object.keys(A.muster)) m[k] = A.endlos ? mische(A.muster[k], A.musterMax[k], u) : A.muster[k];
     return {
       u, muster: m,
-      dichte: A.endlos ? mische(A.dichte, A.dichteMax, u) : A.dichte,
-      wechsel: A.endlos ? mische(A.wechselFaktor, A.wechselMax, u) : A.wechselFaktor,
-      tempo: A.endlos ? mische(A.tempo, A.tempoMax, u) : A.tempo,
+      dichte: A.endlos ? mische(A.dichte, A.dichteZiel, steigerung(A, sp.d)) : A.dichte,
+      wechsel: A.endlos ? mische(A.wechselFaktor, A.wechselZiel, steigerung(A, sp.d)) : A.wechselFaktor,
+      tempo: A.endlos ? Math.min(A.tempoSicher, mische(A.tempo, A.tempoZiel, steigerung(A, sp.d))) : A.tempo,
     };
   }
   // Rhythmus: intensive Abschnitte im Wechsel mit kurzer Entlastung (nie ganz leer)
@@ -1151,6 +1168,14 @@ function erstelleFahrt(auftragId, optionen = {}) {
       if (a.d > kand.d && a.v < kand.v - 0.3) kand.v = kand.vSoll = Math.min(kand.v, a.v);
     }
     return kand.v < vGrund - 6;   // Verkehr bleibt deutlich langsamer als der Spieler
+  }
+  function reihenfolgeOk(kand) {
+    for (const a of w.autos) {
+      if (!belegtSpur(a, kand.spur)) continue;
+      if (a.d < kand.d && a.v > kand.v + 0.3) return false;   // hinten schneller → würde auffahren
+      if (a.d > kand.d && a.v < kand.v - 0.3) return false;   // vorne langsamer → würde aufholen
+    }
+    return true;
   }
   const klein = () => (rnd() < 0.55 ? 'kugel' : 'taxi');
   const tempoVon = typ => rnd.zwischen(FAHRZEUGE[typ].tempo[0], FAHRZEUGE[typ].tempo[1]) * vGrund / TEMPO_BEZUG;
@@ -1185,24 +1210,36 @@ function erstelleFahrt(auftragId, optionen = {}) {
     return g;
   }
   function versucheSpawn() {
-    const dSpawn = sp.d + SPAWN_MIN + rnd() * 18;
+    const dSpawn = sp.d + SPAWN_MIN + rnd() * 32;
     if (dSpawn > strecke.zielVon - 130) return;
     if (sp.d < 120 && A.erklaeren) return;   // kurzer ruhiger Start
     const ab = strecke.abschnittBei(dSpawn);
     const st = stand();
     const ziel = st.dichte * ab.dichte * welle(dSpawn);
+    // Dichte = Autos je 100 m Straße vor dem Spieler (bis zur Spawnzone)
     let vorne = 0;
-    for (const a of w.autos) if (a.d > sp.d - 6 && a.d < sp.d + SPAWN_MIN + 45) vorne++;
-    if (vorne >= ziel) return;
+    for (const a of w.autos) if (a.d > sp.d - 6 && a.d < sp.d + SPAWN_MIN + 26) vorne++;
+    if (vorne >= ziel * (SPAWN_MIN + 32) / 100) return;
     w.pruefung.versuche++;
     // In der Entlastung nur Einzelautos
     const muster = welle(dSpawn) < 1 ? 'einzel' : musterWahl(st.muster);
-    // höchstens zwei Kandidaten pro Versuch (Rechenzeit begrenzen); sonst beim nächsten Versuch
-    const spuren = [...Array(SP).keys()].sort(() => rnd() - 0.5).slice(0, 2);
+    // alle Spuren als Kandidaten (die Wegsuche ist schnell genug)
+    const spuren = [...Array(SP).keys()].sort(() => rnd() - 0.5);
     for (const s0 of spuren) {
       const gruppe = baueGruppe(muster, s0, dSpawn, ab);
-      if (!gruppe.every(passtInSpur)) continue;
-      if (muster !== 'einzel' && muster !== 'lkwMix') { const vMin = Math.min(...gruppe.map(a => a.v)); for (const a of gruppe) a.v = a.vSoll = vMin; }
+      if (!gruppe.every(passtInSpur)) { w.pruefung.luecke = (w.pruefung.luecke || 0) + 1; continue; }
+      if (muster !== 'einzel' && muster !== 'lkwMix') {
+        // gemeinsames Tempo im Bereich, den alle Spuren der Gruppe erlauben (niemand holt später jemanden ein)
+        let lo = 0, hi = vGrund - 6;
+        for (const g of gruppe) for (const a of w.autos) {
+          if (!belegtSpur(a, g.spur)) continue;
+          if (a.d < g.d) lo = Math.max(lo, a.v); else hi = Math.min(hi, a.v);
+        }
+        if (lo > hi + 1e-9) { w.pruefung.tempoBereich = (w.pruefung.tempoBereich || 0) + 1; continue; }
+        const v = klemme(Math.min(...gruppe.map(a => a.v)), lo, hi);
+        for (const a of gruppe) a.v = a.vSoll = v;
+      }
+      if (!gruppe.every(reihenfolgeOk)) { w.pruefung.reihenfolge = (w.pruefung.reihenfolge || 0) + 1; continue; }
       if (!fair(gruppe, null)) { w.pruefung.abgelehnt++; continue; }
       for (const a of gruppe) w.autos.push(a);
       w.statistik.muster[muster] = (w.statistik.muster[muster] || 0) + 1;
@@ -1430,16 +1467,24 @@ function erstelleFahrt(auftragId, optionen = {}) {
     if (warAn && !sp.boostAn) sende('boostEnde');
     if (sp.boostAn) w.statistik.boostZeit += DT;
     // Längs: automatisch auf Grundtempo, mit Boostfeld bis +30 %; im Ziel ausrollen
-    const vZiel = imZiel ? 0 : vGrund * (1 + (BOOST.faktor - 1) * glatt(sp.boostAnteil));
+    let vZiel = imZiel ? 0 : vGrund * (1 + (BOOST.faktor - 1) * glatt(sp.boostAnteil));
+    // Klebt der Kombi direkt am Heck eines Autos, beschleunigt er nicht weiter hinein (kein Dauerrempeln) –
+    // vorbei kommt man durch einen Spurwechsel
+    for (const a of w.autos) {
+      if (a.d <= sp.d || Math.abs(a.x - sp.x) > (a.breite * 0.88 + SPIELER.trefferBreite) / 2) continue;
+      const luecke = a.d - sp.d - (a.laenge * 0.92 + SPIELER.trefferLaenge) / 2;
+      if (luecke < 0.8) vZiel = Math.min(vZiel, a.v + (a.stoss || 0));
+    }
     if (sp.v < vZiel) sp.v = Math.min(vZiel, sp.v + (sp.boostAn ? SPIELER.boostBeschl : SPIELER.beschl) * DT);
     else sp.v = Math.max(vZiel, sp.v - (imZiel ? 9 : SPIELER.bremsen) * DT);
     w.statistik.maxTempo = Math.max(w.statistik.maxTempo, sp.v);
     // Quer: Finger-Ziel (relativ), Richtungstasten oder ausrollen – kein automatischer Spurwechsel
     let vxw = 0;
     if (imZiel) vxw = 0;
+    else if (e.ziel != null && e.spur) vxw = klemme((klemme(e.ziel, X_MIN, X_MAX) - sp.x) * SPIELER.spurFaktor, -SPIELER.spurMax, SPIELER.spurMax);
     else if (e.ziel != null) vxw = klemme((klemme(e.ziel, X_MIN, X_MAX) - sp.x) * SPIELER.zielFaktor, -SPIELER.seitMax, SPIELER.seitMax);
     else if (e.richtung) vxw = e.richtung * SPIELER.seitMax;
-    const seitA = (vxw === 0 || Math.sign(vxw) !== Math.sign(sp.vx)) ? SPIELER.seitBremse : SPIELER.seitBeschl;
+    const seitA = e.spur ? SPIELER.spurBeschl : (vxw === 0 || Math.sign(vxw) !== Math.sign(sp.vx)) ? SPIELER.seitBremse : SPIELER.seitBeschl;
     sp.vx += klemme(vxw - sp.vx, -seitA * DT, seitA * DT);
     sp.x += sp.vx * DT;
     if (sp.x < X_MIN || sp.x > X_MAX) {
@@ -1449,7 +1494,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       if (!imZiel) sp.v *= Math.pow(SCHADEN.leitplanke, DT * 60);
     }
     if (sp.planke > 0) sp.planke -= DT;
-    sp.neigung += ((sp.vx / SPIELER.seitMax) * SPIELER.neigungMax - sp.neigung) * Math.min(1, DT * 14);
+    sp.neigung += (klemme(sp.vx / SPIELER.seitMax, -1.4, 1.4) * SPIELER.neigungMax - sp.neigung) * Math.min(1, DT * 14);
     const dAlt = sp.d;
     sp.d += sp.v * DT;
     // Boostfelder: Überfahrt in Weltkoordinaten, über die ganze in diesem Schritt gefahrene Strecke
@@ -1618,8 +1663,8 @@ function erstelleFahrt(auftragId, optionen = {}) {
   function schritt(eingabe = {}) {
     if (w.phase === 'fertig') return;
     w.zeit += DT; w.phaseZeit += DT;
-    // Endlos: Grundtempo folgt weich der Schwierigkeit (Obergrenze A.tempoMax)
-    if (A.endlos && w.phase === 'fahrt') { vGrund = Math.min(A.tempoMax, vGrund + klemme(stand().tempo - vGrund, -0.5 * DT, 0.5 * DT)); w.vGrund = vGrund; }
+    // Endlos: Grundtempo steigt weich mit der Strecke – immer weiter, aber abflachend
+    if (A.endlos && w.phase === 'fahrt') { vGrund = vGrund + klemme(stand().tempo - vGrund, -0.5 * DT, 0.5 * DT); w.vGrund = vGrund; }
     aktualisiereSpieler(eingabe);
     aktualisiereVerkehr();
     aktualisierePolizei();
@@ -1629,7 +1674,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       w.punkte.strecke += sp.v * DT * PUNKTE.proMeter * (sp.boostAn ? PUNKTE.boostFaktor : 1);
       druckUndWarnung();
       w.spawnUhr -= DT;
-      if (w.spawnUhr <= 0) { w.spawnUhr = 0.3; versucheSpawn(); planeFelder(); }
+      if (w.spawnUhr <= 0) { w.spawnUhr = 0.15; versucheSpawn(); planeFelder(); }
       planePolizei(DT);
       while (sp.d >= strecke.marke(w.markeNr)) {
         w.markeNr++; w.punkte.marken += PUNKTE.marke;
@@ -1671,7 +1716,7 @@ const Speicher = (() => {
   const STANDARD = () => ({
     v: VERSION,
     ton: true, effekte: 0.8, musik: 0.45,
-    knoepfe: false, empfindlich: 1,
+    knoepfe: false, empfindlich: 1, steuerart: 'spur',
     coupEinstieg: false,
     auftrag: 'containerkai',
     beste: { endlos: leer(), containerkai: leer(), neonviertel: leer(), nachthafen: leer() },
@@ -1689,6 +1734,7 @@ const Speicher = (() => {
     daten.musik = zahl(d.musik, 0, 1, s.musik);
     daten.knoepfe = typeof d.knoepfe === 'boolean' ? d.knoepfe : s.knoepfe;
     daten.empfindlich = [0.7, 1, 1.35].includes(d.empfindlich) ? d.empfindlich : 1;
+    daten.steuerart = d.steuerart === 'ziehen' ? 'ziehen' : 'spur';
     daten.auftrag = AUFTRAG_LISTE.includes(d.auftrag) ? d.auftrag : s.auftrag;
   }
   function bestwerteAus(q) {
@@ -1752,7 +1798,7 @@ const Speicher = (() => {
     verfuegbar: () => verfuegbar,
     neuLaden: lade,
   };
-  for (const n of ['ton', 'effekte', 'musik', 'knoepfe', 'empfindlich', 'coupEinstieg', 'auftrag']) Object.defineProperty(api, n, einstellung(n));
+  for (const n of ['ton', 'effekte', 'musik', 'knoepfe', 'empfindlich', 'steuerart', 'coupEinstieg', 'auftrag']) Object.defineProperty(api, n, einstellung(n));
   return api;
 })();
 
@@ -3021,6 +3067,9 @@ const Eingabe = (() => {
   const st = {
     links: new Set(), rechts: new Set(),
     zug: null,                 // { id, startX, x0, mPerPx, letzteX }
+    steuerart: 'spur',         // 'spur': ein Tipp/Tastendruck = eine Spur · 'ziehen': relativ ziehen
+    zielSpur: null,            // Zielspur im Spurmodus
+    spurwechsel: 0,            // für Tests
     aktiv: () => null,         // liefert 'fahrt' | 'coup' | null
     spieler: () => ({ x: 0, min: -5, max: 5, breite: 12 }),
     beiAktion: () => {}, beiPause: () => {}, beiTon: () => {}, beiErsterBeruehrung: () => {},
@@ -3030,10 +3079,18 @@ const Eingabe = (() => {
 
   function leeren() {
     st.links.clear(); st.rechts.clear();
-    st.zug = null;
+    st.zug = null; st.zielSpur = null;
   }
 
+  // Spurwechsel um eine Spur (mehrere Drücke schnell hintereinander = mehrere Spuren)
+  function spurWechsel(richtung) {
+    const s = st.spieler();
+    const jetzt = st.zielSpur != null ? st.zielSpur : klemme(Math.round(s.x / SPUR + (SPUREN - 1) / 2), 0, SPUREN - 1);
+    st.zielSpur = klemme(jetzt + richtung, 0, SPUREN - 1);
+    st.spurwechsel++;
+  }
   function lesen() {
+    if (st.steuerart === 'spur') return { ziel: st.zielSpur != null ? spurX(st.zielSpur, SPUREN) : null, richtung: 0, spur: true };
     const r = (st.rechts.size ? 1 : 0) - (st.links.size ? 1 : 0);
     let ziel = null;
     if (st.zug && st.zug.ziel != null) ziel = st.zug.ziel;
@@ -3064,6 +3121,7 @@ const Eingabe = (() => {
       if (!modus) return;
       e.preventDefault();
       if (modus === 'coup') { st.beiAktion(); return; }
+      if (st.steuerart === 'spur') { const r = el.getBoundingClientRect(); spurWechsel(e.clientX < r.left + r.width / 2 ? -1 : 1); return; }
       if (st.zug) return;                       // ein Finger lenkt, weitere Finger ignorieren
       try { el.setPointerCapture(e.pointerId); } catch (x) { /* egal */ }
       const s = st.spieler();
@@ -3081,12 +3139,15 @@ const Eingabe = (() => {
   // Halte-Knöpfe (links, rechts): eigene Pointer, gehen nie an die Fläche weiter
   function verbindeKnopf(el, menge) {
     const weg = e => { menge.delete(e.pointerId); el.classList.remove('gedrueckt'); };
+    el.addEventListener('pointerleave', () => { if (st.steuerart === 'spur') el.classList.remove('gedrueckt'); });
     el.addEventListener('pointerdown', e => {
       e.stopPropagation(); e.preventDefault();
       st.beiErsterBeruehrung(e);
       if (st.aktiv() !== 'fahrt') return;
+      el.classList.add('gedrueckt');
+      if (st.steuerart === 'spur') { spurWechsel(menge === st.links ? -1 : 1); return; }
       try { el.setPointerCapture(e.pointerId); } catch (x) { /* egal */ }
-      menge.add(e.pointerId); el.classList.add('gedrueckt');
+      menge.add(e.pointerId);
     });
     el.addEventListener('pointerup', e => { e.stopPropagation(); weg(e); });
     el.addEventListener('pointercancel', weg);
@@ -3112,6 +3173,7 @@ const Eingabe = (() => {
       if ((e.code === 'Space' || e.code === 'Enter') && !e.repeat) { e.preventDefault(); st.beiAktion(); }
       return;
     }
+    if (st.steuerart === 'spur' && (LINKS.includes(e.code) || RECHTS.includes(e.code))) { e.preventDefault(); if (!e.repeat) spurWechsel(LINKS.includes(e.code) ? -1 : 1); return; }
     if (LINKS.includes(e.code)) { e.preventDefault(); st.links.add(e.code); }
     else if (RECHTS.includes(e.code)) { e.preventDefault(); st.rechts.add(e.code); }
     else if (e.code === 'Space') e.preventDefault();   // in der Fahrt ohne Funktion, aber kein Seitenscrollen
@@ -3123,7 +3185,7 @@ const Eingabe = (() => {
   window.addEventListener('blur', leeren);
 
   return {
-    st, lesen, leeren, neuBasis, verbindeFlaeche,
+    st, lesen, leeren, neuBasis, verbindeFlaeche, spurWechsel,
     verbindeKnoepfe(links, rechts) { verbindeKnopf(links, st.links); verbindeKnopf(rechts, st.rechts); },
   };
 })();
@@ -3569,6 +3631,7 @@ const PixelDuell = (() => {
     links.hidden = rechts.hidden = !knoepfe;
     $('lenkHinweis').hidden = !(lay.modus === 'unten' || flaeche.className === 'seite');
     aktualisiereSteuerung();
+    if (typeof zeigeSteuerart === 'function') zeigeSteuerart();
     zeichneTitel();
   }
   function aktualisiereSteuerung() {
@@ -3582,7 +3645,7 @@ const PixelDuell = (() => {
     $('lenkHinweis').style.visibility = fahrt ? 'visible' : 'hidden';
     const tipp = $('tastenTipp');
     tipp.innerHTML = coup ? '<b>LEERTASTE</b><br>Impuls / Fangen<br><br><b>P</b> Pause<br><b>M</b> Ton'
-      : '<b>PFEILTASTEN</b><br>oder <b>A</b> / <b>D</b><br>lenken<br><br>Pfeilfelder auf<br>der Straße geben<br><b>BOOST</b><br><br><b>P</b> Pause<br><b>M</b> Ton<br><br>Maus: auf der<br>Straße ziehen';
+      : '<b>PFEILTASTEN</b><br>oder <b>A</b> / <b>D</b><br>Spur wechseln<br>(ein Druck =<br>eine Spur)<br><br>Pfeilfelder auf<br>der Straße geben<br><b>BOOST</b><br><br><b>P</b> Pause<br><b>M</b> Ton<br><br>Maus: links oder<br>rechts klicken';
   }
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', () => setTimeout(layout, 120));
@@ -3598,6 +3661,7 @@ const PixelDuell = (() => {
     return { x: F.sp.x, min: F.X_MIN, max: F.X_MAX, breite: F.X_MAX - F.X_MIN + SPIELER.breite };
   };
   Eingabe.st.empfindlich = Speicher.empfindlich;
+  Eingabe.st.steuerart = Speicher.steuerart;
   Eingabe.st.beiAktion = () => coupAktion();
   Eingabe.st.beiPause = () => { if (zustand === 'pause') weiter(); else if (zustand === 'coup' || zustand === 'fahrt') pause(false); };
   Eingabe.st.beiTon = () => schalteTon();
@@ -3606,7 +3670,11 @@ const PixelDuell = (() => {
     if (e.pointerType === 'touch' && !touchGesehen) { touchGesehen = true; layout(); }
   };
   // Klicks auf die Bühne (Coup: tippen irgendwo)
-  cv.addEventListener('pointerdown', e => { Ton.wecke(); if (e.pointerType === 'touch' && !touchGesehen) { touchGesehen = true; layout(); } if (zustand === 'coup') { e.preventDefault(); coupAktion(); } });
+  cv.addEventListener('pointerdown', e => {
+    Ton.wecke(); if (e.pointerType === 'touch' && !touchGesehen) { touchGesehen = true; layout(); }
+    if (zustand === 'coup') { e.preventDefault(); coupAktion(); }
+    else if (zustand === 'fahrt' && Speicher.steuerart === 'spur') { e.preventDefault(); Eingabe.spurWechsel(e.clientX < lay.sicht.x + lay.sicht.w / 2 ? -1 : 1); }
+  });
   $('aktionKnopf').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); Ton.wecke(); if (zustand === 'coup') coupAktion(); });
   $('aktionKnopf').addEventListener('click', e => e.preventDefault());
   $('ueberspringenKnopf').addEventListener('click', e => { e.stopPropagation(); if (zustand === 'coup' && lauf) { Ton.klick(); starteFahrt(true); } });
@@ -3635,9 +3703,17 @@ const PixelDuell = (() => {
   // Steuerungs-Einstellungen
   $('knoepfeWahl').checked = Speicher.knoepfe;
   $('knoepfeWahl').addEventListener('change', e => { Speicher.knoepfe = e.target.checked; layout(); });
+  function zeigeSteuerart() {
+    document.querySelectorAll('.js-steuerart').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.wert === Speicher.steuerart)));
+    const spur = Speicher.steuerart === 'spur';
+    $('lenkflaeche').classList.toggle('spurmodus', spur && lay.modus === 'unten');
+    $('lenkHinweis').innerHTML = spur ? '<b>◀</b> LINKS TIPPEN &nbsp; &nbsp; RECHTS TIPPEN <b>▶</b>' : '<b>◀</b> HIER ZIEHEN ZUM LENKEN <b>▶</b>';
+  }
+  document.querySelectorAll('.js-steuerart').forEach(b => b.addEventListener('click', () => { Speicher.steuerart = b.dataset.wert; Eingabe.st.steuerart = Speicher.steuerart; Eingabe.leeren(); Ton.klick(); zeigeSteuerart(); }));
   function zeigeEmpf() { document.querySelectorAll('.js-empf').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.wert) === Speicher.empfindlich))); }
   document.querySelectorAll('.js-empf').forEach(b => b.addEventListener('click', () => { Speicher.empfindlich = Number(b.dataset.wert); Eingabe.st.empfindlich = Speicher.empfindlich; Ton.klick(); zeigeEmpf(); }));
   zeigeEmpf();
+  zeigeSteuerart();
 
   // ---------------------------------------------------------------
   // Fenster
@@ -3754,7 +3830,7 @@ const PixelDuell = (() => {
     $('hudRestTitel').textContent = lauf.id === 'endlos' ? 'STRECKE' : 'ZIEL';
     setzeZustand('fahrt');
     melde(lauf.id === 'endlos' ? 'NEON-ENDLOS' : `MISSION ${lauf.A.nr}\n${lauf.A.name.toUpperCase()}`, 1.0, 'gross');
-    zeigeHinweis('lenken', touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: Pfeiltasten oder A / D.', 3.5, true);
+    zeigeHinweis('lenken', Speicher.steuerart === 'spur' ? (touchGesehen ? 'Tippe links oder rechts: sofort eine Spur weiter!' : '← → oder A / D: ein Druck = eine Spur.') : (touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: Pfeiltasten oder A / D halten.'), 3.5, true);
   }
   function coupAktion() {
     if (zustand !== 'coup' || !lauf || !lauf.coup) return;
@@ -4014,6 +4090,11 @@ const PixelDuell = (() => {
       }
       const e = botEingabe ? botEingabe() : Eingabe.lesen();
       lauf.fahrt.schritt(e);
+      if (lauf.id === 'endlos') {
+        const kmh = Math.floor(lauf.fahrt.w.vGrund * 3.6 / 20) * 20;
+        if (!lauf.kmhMarke) lauf.kmhMarke = kmh;
+        if (kmh > lauf.kmhMarke) { lauf.kmhMarke = kmh; melde(`TEMPO ${kmh} KM/H!`, 1.3); Ton.marke(); }
+      }
       if (lauf.fahrt.w.felder.some(f => f.status === 'offen' && f.d - lauf.fahrt.sp.d < ANSICHT.vorne)) zeigeHinweis('felder', 'Fahre über die leuchtenden Pfeilfelder für einen Temposchub!', 4, true);
       lauf.gesamtZeit += dt;
       verarbeiteFahrtEreignisse();

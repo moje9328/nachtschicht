@@ -146,6 +146,26 @@ async def main():
         ok(await pg.locator('#boostKnopf').count() == 0 and await pg.locator('#boostBalken').count() == 0, 'kein Boostknopf und kein Boost-Ladebalken mehr')
         ok(not await im_bild(pg, '#boostWirkung'), 'Boost-Wirkzeit nur während eines Boosts sichtbar')
         ok(box['height'] <= 145, f'Steuerfläche kompakter, Fahransicht größer ({round(box["height"])} px)')
+        # Standard: Spurwechsel per Tipp (links/rechts auf der Steuerfläche oder der Straße)
+        await pg.evaluate(f'{F}.w.autos.length = 0; {F}.w.felder.length = 0; {F}.w.spawnUhr = 1e9; {F}.w.polizeiUhr = 1e9; {F}.w.polizei.length = 0; {F}.w.anmeldungen.length = 0')
+        ok(await wert(pg, f'{N}.speicher.steuerart') == 'spur', 'Standard-Steuerart: Spurwechsel per Tipp')
+        x0 = await wert(pg, f'{F}.sp.x')
+        await pg.tap('#lenkflaeche', position={'x': 30, 'y': box['height'] * 0.5})
+        ok(await warte(pg, f'Math.abs({F}.sp.x - ({x0} - 3.6)) < 0.05', 2000), 'Tipp links = genau eine Spur nach links')
+        t0 = await wert(pg, f'{F}.w.zeit')
+        await pg.tap('#lenkflaeche', position={'x': box['width'] - 30, 'y': box['height'] * 0.5})
+        await warte(pg, f'Math.abs({F}.sp.x - {x0}) < 0.05', 2000)
+        dt = await wert(pg, f'{F}.w.zeit') - t0
+        ok(dt < 0.45, f'Spurwechsel zügig ({dt:.2f} s inkl. Eingabeverzögerung)')
+        await pg.tap('#lenkflaeche', position={'x': box['width'] - 30, 'y': box['height'] * 0.5})
+        await pg.tap('#lenkflaeche', position={'x': box['width'] - 30, 'y': box['height'] * 0.5})
+        await pg.wait_for_timeout(600)
+        ok(abs(await wert(pg, f'{F}.sp.x') - (x0 + 3.6)) < 0.05, 'zwei Tipps rechts: bis an die rechte Spur, nicht darüber hinaus')
+        sv = (await wert(pg, f'{N}.lay()'))['sicht']
+        await pg.tap('#bild', position={'x': sv['x'] + sv['w'] * 0.2, 'y': sv['y'] + sv['h'] * 0.5})
+        ok(await warte(pg, f'Math.abs({F}.sp.x - {x0}) < 0.05', 2000), 'Tipp links auf die Straße wechselt ebenfalls die Spur')
+        # Optional: frei ziehen
+        await pg.evaluate(f"{N}.speicher.steuerart = 'ziehen'; {N}.eingabeSt.steuerart = 'ziehen'")
         if MOTOR == 'chromium':
             cdp = await ctx.new_cdp_session(pg)
             async def touch(typ, x=0, y=0, ident=1, punkte=None):
@@ -248,14 +268,21 @@ async def main():
         await warte_fahrt(pg)
         await pg.evaluate(f'{F}.w.autos.length = 0; {F}.w.felder.length = 0; {F}.w.spawnUhr = 1e9; {F}.w.polizeiUhr = 1e9')
         x0 = await wert(pg, f'{F}.sp.x')
-        await pg.keyboard.down('ArrowLeft'); await pg.wait_for_timeout(250); await pg.keyboard.up('ArrowLeft')
-        await pg.wait_for_timeout(300)
+        await pg.keyboard.press('ArrowLeft'); await pg.wait_for_timeout(400)
         x1 = await wert(pg, f'{F}.sp.x')
-        ok(x1 < x0 - 0.8, f'Pfeil links lenkt ({x0:.2f} → {x1:.2f})')
-        await pg.wait_for_timeout(400)
-        ok(abs(await wert(pg, f'{F}.sp.x') - x1) < 0.05, 'Taste los: Auto bleibt')
+        ok(abs(x1 - (x0 - 3.6)) < 0.05, f'Pfeil links: genau eine Spur ({x0:.2f} → {x1:.2f})')
+        await pg.keyboard.down('ArrowLeft'); await pg.wait_for_timeout(700); await pg.keyboard.up('ArrowLeft'); await pg.wait_for_timeout(300)
+        ok(abs(await wert(pg, f'{F}.sp.x') - (x1 - 3.6)) < 0.05, 'Taste halten wiederholt nicht: weiterhin eine Spur pro Druck')
+        await pg.keyboard.press('KeyD'); await pg.keyboard.press('KeyD'); await pg.wait_for_timeout(500)
+        ok(abs(await wert(pg, f'{F}.sp.x') - (x1 + 3.6)) < 0.05, 'D zweimal: zwei Spuren nach rechts')
+        sv = (await wert(pg, f'{N}.lay()'))['sicht']
+        xk = await wert(pg, f'{F}.sp.x')
+        await pg.mouse.click(sv['x'] + sv['w'] * 0.15, sv['y'] + sv['h'] * 0.5); await pg.wait_for_timeout(400)
+        ok(abs(await wert(pg, f'{F}.sp.x') - (xk - 3.6)) < 0.05, 'Mausklick links auf die Straße: eine Spur nach links')
+        x1 = await wert(pg, f'{F}.sp.x')
+        await pg.evaluate(f"{N}.speicher.steuerart = 'ziehen'; {N}.eingabeSt.steuerart = 'ziehen'")
         await pg.keyboard.down('KeyD'); await pg.wait_for_timeout(200); await pg.keyboard.up('KeyD')
-        ok(await wert(pg, f'{F}.sp.x') > x1 + 0.5, 'D lenkt nach rechts')
+        ok(await wert(pg, f'{F}.sp.x') > x1 + 0.5, 'Ziehen-Modus: D gedrückt halten lenkt')
         # Maus ziehen auf der Straße: kein Sprung beim Drücken
         s = lay['sicht']
         mx, my = s['x'] + s['w'] * 0.2, s['y'] + s['h'] * 0.6
@@ -321,7 +348,7 @@ async def main():
                 if ((k.phase === 'laden' && k.sperre <= 0 && Math.abs(k.zeiger - k.zone.mitte) < k.zone.breite * 0.2) || c.fangbar()) c.aktion();
                 requestAnimationFrame(f); }}; f(); }})()''')
             ok(await warte(pg, f"{N}.zustand() === 'fahrt'", 30000), f'{auftrag}: Coup → Fahrt')
-            await pg.evaluate(f'{N}.erstelleBot({{}})')
+            await pg.evaluate(f'{N}.erstelleBot({{ spur: true }})')
             fertig = await warte(pg, f"{N}.zustand() === 'ergebnis'", 120000)
             titel = await pg.inner_text('#fErgebnisTitel') if fertig else '–'
             ok(fertig and titel == 'Mission geschafft!', f'{auftrag}: Mission geschafft ({titel})')

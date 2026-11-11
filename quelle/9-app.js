@@ -207,9 +207,9 @@
   $('steuerungKnopf').addEventListener('click', () => { Ton.klick(); fensterZurueck = 'fStart'; zeigeFenster('fSteuerung'); });
   $('pauseSteuerungKnopf').addEventListener('click', () => { Ton.klick(); fensterZurueck = 'fPause'; zeigeFenster('fSteuerung'); });
   $('weiterKnopf').addEventListener('click', () => weiter());
-  $('neustartKnopf').addEventListener('click', () => { Ton.klick(); if (lauf) starteAuftrag(lauf.id, lauf.mitCoup); });
+  $('neustartKnopf').addEventListener('click', () => { Ton.klick(); if (lauf) starteAuftrag(lauf.id, lauf.mitCoup, lauf.tages); });
   $('pauseMenueKnopf').addEventListener('click', () => { Ton.klick(); zeigeStart(); });
-  $('nochmalKnopf').addEventListener('click', () => { Ton.klick(); if (lauf) starteAuftrag(lauf.id, lauf.mitCoup); });
+  $('nochmalKnopf').addEventListener('click', () => { Ton.klick(); if (lauf) starteAuftrag(lauf.id, lauf.mitCoup, lauf.tages); });
   $('ergebnisAuftraegeKnopf').addEventListener('click', () => { Ton.klick(); if (lauf && lauf.id !== 'endlos') { beendeLauf(); zeigeAuftraege(); } else zeigeStart(); });
 
   // ---------------------------------------------------------------
@@ -269,8 +269,21 @@
     }
   }
 
+  // Tagesfahrt: jeden Tag dieselbe Strecke für alle (Startwert aus dem Datum)
+  const heute = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; };
+  function zeigeTages() {
+    const t = Speicher.tagesBeste(heute());
+    $('tagesText').textContent = t.versuche ? `Tagesfahrt heute: Bestwert ${zahl(t.punkte)} · ${(t.strecke / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} km` : 'Tagesfahrt: jeden Tag eine neue Strecke – für alle gleich.';
+  }
+  $('tagesKnopf').addEventListener('click', () => { Ton.klick(); starteAuftrag('endlos', false, true); });
+  // Vibration (nur wo vorhanden, abschaltbar)
+  const vibriere = muster => { try { if (Speicher.vibration && navigator.vibrate) navigator.vibrate(muster); } catch (e) { /* egal */ } };
+  $('vibrationWahl').checked = Speicher.vibration;
+  $('vibrationWahl').addEventListener('change', e => { Speicher.vibration = e.target.checked; if (e.target.checked) vibriere(30); });
+
   function zeigeStart() {
     zeigeAufgaben();
+    zeigeTages();
     beendeLauf();
     const r = Speicher.beste('endlos');
     $('startRekord').hidden = !r.versuche;
@@ -330,11 +343,11 @@
     setzeZustand('menue');
   }
   function neuerSeed() { return FESTER_SEED != null ? FESTER_SEED : (Math.random() * 4294967296) >>> 0; }
-  function starteAuftrag(id, mitCoup) {
+  function starteAuftrag(id, mitCoup, tages = false) {
     beendeLauf();
     const A = AUFTRAEGE[id];
     const coup = id !== 'endlos' && !!mitCoup;
-    lauf = { id, A, seed: neuerSeed(), coup: null, fahrt: null, startUhr: 0, ruetteln: 0, mitCoup: coup, coupErgebnis: null, gesamtZeit: 0 };
+    lauf = { id, A, seed: tages ? Number(heute()) : neuerSeed(), tages, coup: null, fahrt: null, startUhr: 0, ruetteln: 0, mitCoup: coup, coupErgebnis: null, gesamtZeit: 0 };
     Speicher.auftrag = id === 'endlos' ? Speicher.auftrag : id;
     document.body.dataset.modus = id === 'endlos' ? 'endlos' : 'auftrag';
     zeigeFenster(null);
@@ -352,7 +365,7 @@
         ? { gespielt: false, uebersprungen: true, timing: 0, beutel: 0, beutelPunkte: 0, perfekte: 0, gute: 0, daneben: 0 }
         : { gespielt: true, uebersprungen: false, timing: Math.max(0, C.trefferPunkte - C.abzug), beutel: C.gefangen, beutelPunkte: C.gefangen * PUNKTE.beutel, perfekte: C.perfekte, gute: C.gute, daneben: C.daneben };
     lauf.coup = null;
-    lauf.fahrt = erstelleFahrt(lauf.id, { seed: lauf.seed, rekordD: lauf.id === 'endlos' ? Speicher.beste('endlos').strecke : 0 });
+    lauf.fahrt = erstelleFahrt(lauf.id, { seed: lauf.seed, rekordD: lauf.tages ? Speicher.tagesBeste(heute()).strecke : lauf.id === 'endlos' ? Speicher.beste('endlos').strecke : 0 });
     lauf.aufgaben = lauf.id === 'endlos' ? Speicher.aufgabenStand() : null;
     lauf.gesamtStart = Speicher.gesamt(); lauf.erfuellt = []; lauf.aufgabenUhr = 0; lauf.neueAufgaben = new Set();
     lauf.startUhr = lauf.id === 'endlos' ? 0.6 : 1.1;
@@ -360,7 +373,7 @@
     $('hudBeuteFeld').classList.toggle('ausgeblendet', !lauf.coupErgebnis.gespielt);
     $('hudRestTitel').textContent = lauf.id === 'endlos' ? 'STRECKE' : 'ZIEL';
     setzeZustand('fahrt');
-    melde(lauf.id === 'endlos' ? 'NEON-ENDLOS' : `MISSION ${lauf.A.nr}\n${lauf.A.name.toUpperCase()}`, 1.0, 'gross');
+    melde(lauf.tages ? 'TAGESFAHRT' : lauf.id === 'endlos' ? 'NEON-ENDLOS' : `MISSION ${lauf.A.nr}\n${lauf.A.name.toUpperCase()}`, 1.0, 'gross');
     zeigeHinweis('lenken', Speicher.steuerart === 'spur' ? (touchGesehen ? 'Tippe links oder rechts: sofort eine Spur weiter!' : '← → oder A / D: ein Druck = eine Spur.') : (touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: Pfeiltasten oder A / D halten.'), 3.5, true);
   }
   function coupAktion() {
@@ -435,7 +448,7 @@
           zeigeHinweis('boostFeld', 'Boost! Schneller und mehr Punkte – aber weniger Zeit zum Reagieren.', 3);
           break;
         case 'unfall': {
-          Ton.unfall(e.art !== 'seite');
+          vibriere(lauf.A.einTreffer ? 140 : 50); Ton.unfall(e.art !== 'seite');
           Eingabe.neuBasis();
           lauf.ruetteln = 0.25;
           Grafik.blase(e.polizei ? 'BONK!' : e.art === 'seite' ? 'RATSCH!' : 'KLONK!', e.d, e.x, '#FFD35A', 0.9, 1.2);
@@ -449,10 +462,10 @@
         case 'rempler': Ton.rempler(); Grafik.blase('BONK', e.d, e.x, '#B5CBE0', 0.7, 0.8); break;
         case 'ueberholt': Ton.ueberholt(e.serie); break;
         case 'serie': Ton.serie(); Grafik.blase('SAUBERE SERIE!', sp.d + 12, 0, '#24D6CD', 1.1, 1); Grafik.blase(`+${e.punkte}`, sp.d + 8, 0, '#24D6CD', 1.0, 0.8); break;
-        case 'knapp': Ton.knapp(e.kombo); Grafik.blase(e.kombo > 1 ? `KNAPP! ×${e.kombo}` : 'KNAPP VORBEI!', sp.d + 7, sp.x, '#FF4FD8', 0.9, 0.8 + Math.min(0.5, e.kombo * 0.06)); zeigeHinweis('knapp', 'Knapp vorbei startet die Kombo: Jedes weitere knappe Manöver erhöht den Multiplikator!', 3.5); break;
+        case 'knapp': vibriere(15); Ton.knapp(e.kombo); Grafik.blase(e.kombo > 1 ? `KNAPP! ×${e.kombo}` : 'KNAPP VORBEI!', sp.d + 7, sp.x, '#FF4FD8', 0.9, 0.8 + Math.min(0.5, e.kombo * 0.06)); zeigeHinweis('knapp', 'Knapp vorbei startet die Kombo: Jedes weitere knappe Manöver erhöht den Multiplikator!', 3.5); break;
         case 'komboEnde': Ton.komboEnde(); break;
         case 'rekord':
-          Ton.rekord(); melde('NEUER REKORD!', 1.8, 'gross'); Grafik.blase('REKORD!', sp.d + 10, 0, '#FFD35A', 1.4, 1.3);
+          vibriere([40, 60, 40]); Ton.rekord(); melde('NEUER REKORD!', 1.8, 'gross'); Grafik.blase('REKORD!', sp.d + 10, 0, '#FFD35A', 1.4, 1.3);
           for (let i = 0; i < (bewegungRuhig.matches ? 10 : 36); i++) Grafik.weltPartikel({ art: 'funke', d: sp.d + 6 + Math.random() * 8, x: (Math.random() - 0.5) * 12, h: 2 + Math.random() * 2, vh: 2 + Math.random() * 3, g: 5, vd: sp.v * 0.85, vx: (Math.random() - 0.5) * 4, dauer: 1.3, groesse: 0.3, farbe: ['#24D6CD', '#FFD35A', '#FF4FD8', '#FF9A3D'][i % 4] });
           break;
         case 'marke': Ton.marke(); melde(`STRECKENMARKE ${e.nr}/${e.von - 1}\n${e.abschnitt.toUpperCase()}`, 1.8); Grafik.blase(`+${e.punkte}`, sp.d + 5, sp.x, '#24D6CD', 1.0, 1); zeigeHinweis('marke', 'Streckenmarken geben Punkte und senken den Verfolgungsdruck.', 3.5); break;
@@ -579,6 +592,11 @@
       : alterRekord.strecke > 0 ? `${Math.round(F.sp.d - alterRekord.strecke).toLocaleString('de-DE')} m weiter als dein alter Rekord!` : 'Dein erster Rekord steht!')
       + (neuerLack ? ` Neue Lackierung frei: „${neuerLack.name}“ (Garage).` : '') : '';
     $('ergebnisPunkte').textContent = zahl(gesamt);
+    if (lauf.tages) {
+      const neuTag = Speicher.trageTagEin(heute(), gesamt, F.sp.d), t = Speicher.tagesBeste(heute());
+      $('fErgebnisTitel').textContent = neuTag && t.versuche > 1 ? 'Neuer Tagesbestwert!' : 'Tagesfahrt beendet';
+      $('ergebnisRekord').textContent = `Tagesbestwert: ${zahl(t.punkte)} · Versuch ${t.versuche}. Morgen gibt es eine neue Strecke.`;
+    }
     const bestEl = $('ergebnisBest');
     bestEl.hidden = false;
     if (endlos) bestEl.textContent = `${neu.punkte ? 'NEUER REKORD' : 'REKORD'}: ${zahl(best.punkte)} · ${(best.strecke / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} KM`;

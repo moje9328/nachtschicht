@@ -21,7 +21,8 @@ const Speicher = (() => {
     alt: null,
     aufgaben: { aktiv: [0, 1, 2], naechste: 3, sterne: 0 },
     gesamt: { strecke: 0, laeufe: 0, knapp: 0, felder: 0 },
-    lack: 'nacht',
+    lack: 'nacht', vibration: true,
+    tages: { datum: '', punkte: 0, strecke: 0, versuche: 0 },
   });
   let daten = STANDARD();
   let verfuegbar = false;
@@ -73,6 +74,8 @@ const Speicher = (() => {
       }
       if (d.gesamt) for (const k of ['strecke', 'laeufe', 'knapp', 'felder']) daten.gesamt[k] = zahl(d.gesamt[k], 0, 1e12, 0);
       if (LACKE.some(l => l.id === d.lack)) daten.lack = d.lack;
+      if (typeof d.vibration === 'boolean') daten.vibration = d.vibration;
+      if (d.tages && typeof d.tages.datum === 'string' && /^\d{8}$/.test(d.tages.datum)) daten.tages = { datum: d.tages.datum, punkte: Math.floor(zahl(d.tages.punkte, 0, 1e9, 0)), strecke: zahl(d.tages.strecke, 0, 1e7, 0), versuche: Math.floor(zahl(d.tages.versuche, 0, 1e6, 0)) };
       if (d.alt && typeof d.alt === 'object') { daten.alt = {}; for (const id of AUFTRAG_LISTE) if (d.alt[id]) daten.alt[id] = bestwerteAus(d.alt[id]); }
     } catch (e) { daten = STANDARD(); }
   }
@@ -111,9 +114,17 @@ const Speicher = (() => {
       daten.gesamt.knapp += lauf.knapp || 0; daten.gesamt.felder += lauf.felder || 0;
       sichere();
     },
+    // Tagesfahrt: Bestwert nur für das heutige Datum (YYYYMMDD)
+    tagesBeste: datum => (daten.tages.datum === datum ? { ...daten.tages } : { datum, punkte: 0, strecke: 0, versuche: 0 }),
+    trageTagEin(datum, punkte, strecke) {
+      if (daten.tages.datum !== datum) daten.tages = { datum, punkte: 0, strecke: 0, versuche: 0 };
+      const t = daten.tages, neu = punkte > t.punkte;
+      t.versuche++; if (neu) t.punkte = punkte; if (strecke > t.strecke) t.strecke = Math.round(strecke);
+      sichere(); return neu;
+    },
     verfuegbar: () => verfuegbar,
     neuLaden: lade,
   };
-  for (const n of ['ton', 'effekte', 'musik', 'knoepfe', 'empfindlich', 'steuerart', 'coupEinstieg', 'auftrag', 'lack']) Object.defineProperty(api, n, einstellung(n));
+  for (const n of ['ton', 'effekte', 'musik', 'knoepfe', 'empfindlich', 'steuerart', 'coupEinstieg', 'auftrag', 'lack', 'vibration']) Object.defineProperty(api, n, einstellung(n));
   return api;
 })();

@@ -167,6 +167,7 @@ async def main():
           Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
           document.dispatchEvent(new Event('visibilitychange'));""")
         ok(await wert(pg, f"{N}.zustand()") == 'pause', 'Tabwechsel pausiert automatisch')
+        await warte(pg, f"['suspended', 'keiner', 'closed', 'interrupted'].includes({N}.ton().kontext)", 1500)   # suspend() ist asynchron
         ton = await wert(pg, f'{N}.ton()')
         ok(ton['kontext'] in ('suspended', 'keiner', 'closed', 'interrupted'), f'Audio angehalten ({ton["kontext"]})')
         await pg.evaluate("""Object.defineProperty(document, 'hidden', { value: false, configurable: true });
@@ -268,6 +269,26 @@ async def main():
         ok(v1 > v0 + 12, f'wird schnell schneller ({v0 * 3.6:.0f} → {v1 * 3.6:.0f} km/h nach {d / 1000:.1f} km)')
         ok(await wert(pg, f'{N}.partikel()') <= 140 and await wert(pg, f'{F}.w.autos.length') <= 40, 'Objekt- und Partikelzahl begrenzt')
         ok(not pg.fehler, f'keine Fehler in der Konsole: {pg.fehler[:3]}')
+        await ctx.close()
+
+        # ---------------------------------------------------------------
+        print('\n# Tagesfahrt und Vibration')
+        ctx, pg = await neue_seite(b, 390, 844, touch=True, init="window.__vib = []; navigator.vibrate = m => { window.__vib.push(m); return true; };")
+        ok('jeden Tag' in await pg.inner_text('#tagesText'), 'Startbildschirm erklärt die Tagesfahrt')
+        await pg.tap('#tagesKnopf'); await warte_fahrt(pg)
+        seed1 = await wert(pg, f'{N}.lauf().seed')
+        ok(await wert(pg, f'{N}.lauf().tages') and len(str(seed1)) == 8, f'Tagesfahrt mit Datum als Startwert ({seed1})')
+        await pg.evaluate(LEER); await pg.evaluate(auto_js(25, 0, 'taxi', 10))
+        ok(await warte(pg, f"{N}.zustand() === 'ergebnis'", 8000), 'Tagesfahrt endet beim Crash')
+        ok('Tages' in await pg.inner_text('#fErgebnisTitel') and 'Tagesbestwert' in await pg.inner_text('#ergebnisRekord'), 'Ergebnis zeigt den Tagesbestwert')
+        ok(await wert(pg, 'window.__vib.includes(140)'), 'Crash vibriert (falls das Gerät es kann)')
+        gesp = json.loads(await wert(pg, "localStorage.getItem('pixelhafen.nachtschicht')"))
+        ok(gesp['tages']['datum'] == str(seed1) and gesp['tages']['versuche'] == 1, 'Tagesbestwert gespeichert')
+        await pg.tap('#nochmalKnopf'); await warte_fahrt(pg)
+        ok(await wert(pg, f'{N}.lauf().seed') == seed1 and await wert(pg, f'{N}.lauf().tages'), '„Sofort nochmal“ bleibt auf derselben Tagesstrecke')
+        await pg.tap('#pauseKnopf'); await pg.tap('#pauseMenueKnopf'); await pg.tap('#soundKnopf')
+        await pg.tap('#vibrationWahl')
+        ok(await wert(pg, f'{N}.speicher.vibration') is False, 'Vibration abschaltbar')
         await ctx.close()
 
         # ---------------------------------------------------------------

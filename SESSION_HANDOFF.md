@@ -207,3 +207,13 @@ GitHub-Repo `moje9328/nachtschicht` anlegen, Pages aus main /, pushen; in `~/spi
 - Browser Chromium 111/111, WebKit 106/106. Neu: Start mit 3 Aufgaben und Sternzähler, Garage mit 5 gesperrten Lackierungen, Kombo-Anzeige an/aus, Rekordstrecke im neuen Lauf, „Sofort nochmal“ ohne Scrollen sichtbar, Gesamtwerte gespeichert.
 
 **Nicht geprüft:** echtes Handy; ob das Belohnungstempo für Menschen passt (nur Bots).
+
+## Runde 7 (11.11.2026): Tagesfahrt und Vibration
+
+- **Tagesfahrt** (Startbildschirm):
+  - Der Startwert ist das Datum (JJJJMMTT), also jeden Tag dieselbe Strecke mit demselben Verkehr, für alle Spieler gleich.
+  - Eigener Tagesbestwert (`Speicher.tages`) mit Versuchszähler und Rekordlinie für den Tag. „Sofort nochmal“ bleibt auf der Tagesstrecke.
+  - Läufe zählen auch für den Endlos-Rekord und die Aufgaben.
+- **Vibration** (`navigator.vibrate`, wo vorhanden): 15 ms bei knapp vorbei, 140 ms beim Crash, Muster beim Rekord. Abschaltbar unter „Sound“, gespeichert.
+- **Tests:** Browser Chromium 119/119, WebKit 114/114 (Prüfung „Audio angehalten“ wartet jetzt auf das asynchrone suspend()), Logik 197/197.
+- **Nicht geprüft:** echte Vibration auf einem Gerät (nur abgefangener Aufruf).

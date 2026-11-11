@@ -71,7 +71,9 @@
   .aufgaben li.fertig { box-shadow: 0 0 0 2px var(--gelb); }
   .aufgaben li.fertig .stern { color: var(--gelb); }
   .aufgaben li .stand { color: var(--muted); font: 9px var(--retro); white-space: nowrap; }
-  .sternzeile { display: flex; justify-content: space-between; align-items: center; margin: 14px 0 0; color: var(--gelb); font: 10px/1.5 var(--retro); }
+  #startSterne { white-space: nowrap; }
+  #startStufe { text-align: right; }
+  .sternzeile { display: flex; gap: 12px; justify-content: space-between; align-items: center; margin: 14px 0 0; color: var(--gelb); font: 10px/1.5 var(--retro); }
   .lacke { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 14px; }
   .lack { display: grid; justify-items: center; gap: 4px; padding: 10px 6px; color: var(--text); background: var(--surface-2); border: 2px solid var(--line); border-radius: 12px; cursor: pointer; font: 600 14px/1.3 var(--body); touch-action: manipulation; }
   .lack canvas { width: 72px; height: 96px; }
@@ -236,7 +238,11 @@
       <p class="duell" id="startDuell" hidden></p>
       <div class="knoepfe">
         <button class="btn main" id="spielenKnopf" type="button">Spielen</button>
-        <button class="btn" id="garageKnopf" type="button">Garage</button>
+        <div class="knoepfe zwei" style="margin-top:0">
+          <button class="btn" id="tagesKnopf" type="button">Tagesfahrt</button>
+          <button class="btn" id="garageKnopf" type="button">Garage</button>
+        </div>
+        <p class="hinweistext" id="tagesText" style="margin:0;text-align:center"></p>
         <button class="btn" id="auftragWahlKnopf" type="button" hidden>Missionen</button>
         <div class="knoepfe zwei" style="margin-top:0">
           <button class="btn klein" id="soundKnopf" type="button">Sound</button>
@@ -275,6 +281,7 @@
       </div>
       <button class="btn js-ton" type="button" aria-pressed="true" style="width:100%">Ton: an</button>
       <div class="regler"><label for="pegelEffekte">Effekte</label><output id="pegelEffekteWert">80 %</output><input type="range" id="pegelEffekte" min="0" max="100" step="5"></div>
+      <label class="schalter"><input type="checkbox" id="vibrationWahl"> Vibration auf dem Handy (knapp vorbei, Crash, Rekord)</label>
       <div class="regler"><label for="pegelMusik">Musik</label><output id="pegelMusikWert">45 %</output><input type="range" id="pegelMusik" min="0" max="100" step="5"></div>
       <p class="hinweistext">Ton und Musik („Neonküste“, eigene Komposition) starten erst nach deiner ersten Berührung oder Taste. M schaltet alles an oder aus.</p>
     </section>

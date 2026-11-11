@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nachtschicht: Hafenbande – Pixelhafen</title>
+<meta name="description" content="Nachtschicht: Hafenbande – ein überzeichnetes Comic-Arcade-Spiel: kurzer Timing-Coup am erfundenen Wertterminal, dann eine rasante Verfolgungsfahrt über die Hafenautobahn. Kostenlos, ohne Anmeldung, ohne Werbung.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#10243A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Nachtschicht">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<style>
+%%BASIS_CSS%%
+
+  /* ---------- Nachtschicht: eigene Teile ---------- */
+  :root { --magenta: #FF4FD8; --orange: #FF9A3D; --nacht: #1A1238; }
+  canvas#bild { position: absolute; inset: 0; width: 100%; height: 100%; cursor: default; }
+  #buehne { position: fixed; inset: 0; }
+  #sicherProbe { position: fixed; inset: 0; visibility: hidden; pointer-events: none;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+
+  /* HUD */
+  #hud {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    top: max(6px, env(safe-area-inset-top));
+    width: min(560px, calc(100% - 12px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    display: grid; gap: 5px; z-index: 2; pointer-events: none;
+  }
+  #hud[hidden] { display: none; }
+  .hudzeile { display: flex; align-items: center; gap: 6px; }
+  .hudzeile .rund { pointer-events: auto; }
+  .rund {
+    flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+    color: var(--text); background: var(--surface); border: 2px solid var(--line); border-radius: 12px; cursor: pointer;
+    touch-action: manipulation;
+  }
+  .rund svg { width: 20px; height: 20px; }
+  .rund[aria-pressed="false"] .welle { display: none; }
+  .rund[aria-pressed="true"] .aus { display: none; }
+  .anzeige {
+    flex: 1 1 0; min-width: 0; display: grid; padding: 3px 8px 4px; background: rgba(22, 49, 79, 0.88);
+    border: 2px solid var(--line); border-radius: 10px; line-height: 1.2;
+  }
+  .anzeige small { color: var(--muted); font: 7px/1.6 var(--retro); letter-spacing: 0.5px; }
+  .anzeige b { font: 12px/1.3 var(--retro); color: var(--gelb); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+  .anzeige.klein { flex: 0.7 1 0; }
+  @media (max-width: 420px) { .anzeige b { font-size: 10px; } .anzeige { padding: 3px 6px 4px; } }
+  .balken {
+    position: relative; flex: 1 1 0; height: 20px; background: rgba(16, 36, 58, 0.9);
+    border: 2px solid var(--line); border-radius: 8px; overflow: hidden;
+  }
+  .balken i { position: absolute; inset: 0 auto 0 0; width: 100%; background: var(--b, var(--tuerkis)); transform-origin: left; transition: none; }
+  .balken span { position: relative; z-index: 1; display: block; padding: 0 6px; font: 7px/16px var(--retro); color: #FFF4DC; text-shadow: 1px 1px 0 #10243A, -1px -1px 0 #10243A; white-space: nowrap; }
+  #zustandBalken { --b: linear-gradient(90deg, #4ADE80, #24D6CD); }
+  #zustandBalken.tief { --b: linear-gradient(90deg, #FF805B, #FFB35C); }
+  #druckBalken { --b: linear-gradient(90deg, #4E8DFF, #FF4FD8); }
+  #druckBalken.warnung { border-color: var(--magenta); box-shadow: 0 0 0 2px rgba(255, 79, 216, 0.45); }
+  #boostBalken { --b: linear-gradient(90deg, #FF9A3D, #FFD35A); }
+  body[data-zustand="coup"] .nurFahrt, body[data-zustand="menue"] #hud { display: none; }
+  body:not([data-modus="training"]) .nurTraining { display: none; }
+  body[data-modus="training"] .nichtTraining { display: none; }
+
+  /* Steuerfläche und Knöpfe (Lage setzt das Skript) */
+  #lenkflaeche {
+    position: absolute; z-index: 1; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    border-top: 2px solid rgba(47, 90, 133, 0.7); background: linear-gradient(180deg, rgba(16, 36, 58, 0.55), rgba(16, 36, 58, 0.85));
+  }
+  #lenkflaeche.unsichtbar { background: none; border: 0; }
+  #lenkflaeche.seite { border-top: 0; border-right: 2px solid rgba(47, 90, 133, 0.7); }
+  #lenkHinweis { position: absolute; left: 0; right: 0; top: 10px; text-align: center; color: var(--muted); font: 8px/1.6 var(--retro); pointer-events: none; opacity: 0.85; }
+  #lenkHinweis b { color: var(--tuerkis); font-weight: 400; }
+  .steuerknopf {
+    position: absolute; display: grid; place-items: center; padding: 0; z-index: 2;
+    color: var(--text); background: rgba(31, 64, 102, 0.92); border: 2px solid var(--line); border-radius: 18px;
+    box-shadow: 0 4px 0 var(--bg); font: 10px/1.3 var(--retro); cursor: pointer;
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  .steuerknopf svg { width: 30px; height: 30px; }
+  .steuerknopf.gedrueckt { transform: translateY(2px); box-shadow: 0 2px 0 var(--bg); filter: brightness(1.25); }
+  #boostKnopf { border-radius: 50%; border-color: var(--orange); overflow: hidden; color: #FFF4DC; }
+  #boostKnopf .fuell { position: absolute; inset: auto 0 0 0; height: 100%; background: linear-gradient(0deg, rgba(255, 154, 61, 0.55), rgba(255, 211, 90, 0.35)); transform-origin: bottom; }
+  #boostKnopf span { position: relative; }
+  #aktionKnopf { border-radius: 18px; border-color: var(--gelb); color: var(--gelb); font-size: 13px; }
+  #ueberspringenKnopf { position: absolute; z-index: 3; min-height: 40px; font-size: 14px; }
+  #neustartSchnell { pointer-events: auto; }
+
+  /* Meldungen im Bild */
+  #meldung, #hinweis {
+    position: absolute; z-index: 2; left: 50%; transform: translateX(-50%); margin: 0;
+    pointer-events: none; text-align: center; white-space: pre-line;
+  }
+  #meldung { font: 14px/1.5 var(--retro); color: var(--gelb); text-shadow: 3px 3px 0 var(--bg), -1px -1px 0 var(--bg); width: min(90vw, 520px); }
+  #meldung.gross { font-size: clamp(18px, 6vw, 30px); }
+  #meldung.warn { color: var(--magenta); }
+  #hinweis {
+    width: min(86vw, 440px); padding: 8px 12px; color: var(--text); background: rgba(16, 36, 58, 0.9);
+    border: 2px solid var(--tuerkis); border-radius: 12px; font: 600 15px/1.35 var(--body);
+  }
+  #hinweis[hidden], #meldung:empty { display: none; }
+  #tastenTipp { position: absolute; z-index: 1; color: var(--muted); font: 9px/1.9 var(--retro); pointer-events: none; }
+  #tastenTipp b { color: var(--gelb); font-weight: 400; }
+
+  /* Fenster */
+  .wahltitel { margin: 16px 0 6px; color: var(--muted); font: 9px/1.5 var(--retro); }
+  .auftraege { display: grid; gap: 10px; margin-top: 14px; }
+  .auftrag {
+    display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: center; padding: 12px; text-align: left;
+    color: var(--text); background: var(--surface-2); border: 2px solid var(--line); border-left: 6px solid var(--g, var(--tuerkis));
+    border-radius: 12px; cursor: pointer; font: 15px/1.35 var(--body); touch-action: manipulation;
+  }
+  .auftrag:hover { border-color: var(--gelb); border-left-color: var(--g); }
+  .auftrag .nr { grid-row: span 4; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; background: var(--bg); color: var(--g); font: 15px var(--retro); }
+  .auftrag h3 { color: var(--g); }
+  .auftrag p { margin: 0; color: var(--muted); font-size: 14px; }
+  .auftrag .best { color: var(--gelb); font-size: 13px; }
+  .schalter { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; background: var(--surface-2); border-radius: 10px; font-size: 15px; cursor: pointer; }
+  .schalter input { width: 22px; height: 22px; accent-color: var(--gelb); }
+  .regler { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; margin-top: 14px; }
+  .regler label { font-weight: 600; }
+  .regler output { color: var(--gelb); font: 10px var(--retro); }
+  .regler input { grid-column: span 2; width: 100%; accent-color: var(--tuerkis); height: 30px; }
+  .wahl { display: grid; gap: 6px; }
+  .wahl.drei { grid-template-columns: repeat(3, 1fr); }
+  .wahl .btn[aria-pressed="true"] { border-color: var(--gelb); box-shadow: 0 0 0 2px var(--gelb); }
+  .regeln { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+  .regeln h3 { color: var(--tuerkis); margin-bottom: 4px; }
+  .regeln p, .regeln ul { margin: 0; color: var(--text); font-size: 15px; }
+  .regeln ul { padding-left: 18px; }
+  #startTitel { display: block; width: 100%; height: auto; aspect-ratio: 2 / 1; margin: 8px 0 0; border-radius: 10px; }
+  .ergebnisgrund { margin: 8px 0 0; text-align: center; color: var(--text); font-weight: 600; }
+  .ergebnisgrund.schlecht { color: var(--koralle); }
+  #ergebnisBild { display: block; width: 100%; height: auto; aspect-ratio: 2 / 1; margin-top: 10px; border-radius: 10px; }
+  .zahlen dd.minus { color: var(--koralle); }
+  .neu { display: inline-block; margin-left: 6px; padding: 1px 6px; color: var(--auf-gelb); background: var(--gelb); border-radius: 6px; font: 8px/1.6 var(--retro); }
+  h1 small { display: block; margin-top: 6px; font-size: 0.62em; color: var(--tuerkis); text-shadow: 2px 2px 0 var(--bg); }
+
+  /* Querformat-Handys: bitte hochkant */
+  #drehen { display: none; }
+  @media (orientation: landscape) and (pointer: coarse) and (max-height: 520px) {
+    #drehen {
+      position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+      padding: 24px max(16px, env(safe-area-inset-right)) 24px max(16px, env(safe-area-inset-left));
+      background: var(--bg); color: var(--text); text-align: center; touch-action: none;
+    }
+    #drehen p { margin: 0; font: 400 14px/1.6 var(--retro); color: var(--gelb); }
+    #drehen small { font-size: 15px; color: var(--muted); }
+  }
+  @media (prefers-reduced-motion: reduce) { .steuerknopf.gedrueckt { transform: none; } }
+</style>
+</head>
+<body data-zustand="menue">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 11 11"><path fill="currentColor" d="M5 0h1v2H5zM3 2h5v1H3zM5 3h1v5H5zM1 6h1v1H1zM9 6h1v1H9zM1 7h2v1H1zM8 7h2v1H8zM2 8h3v1H2zM6 8h3v1H6zM3 9h5v1H3z"/></symbol>
+</svg>
+<div id="sicherProbe"></div>
+<div id="app">
+  <main id="buehne">
+    <canvas id="bild" tabindex="0" role="img" aria-label="Spielfeld: Straße von leicht schräg oben, dein Kombi unten. Ziehen auf der Steuerfläche, Pfeiltasten oder A und D lenken, Leertaste ist Boost."></canvas>
+    <div id="hud">
+      <div class="hudzeile">
+        <button class="rund" id="pauseKnopf" type="button" aria-label="Pause (P)">
+          <svg viewBox="0 0 16 16" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M4 3h3v10H4zM9 3h3v10H9z"/></svg>
+        </button>
+        <div class="anzeige"><small>PUNKTE</small><b id="hudPunkte">0</b></div>
+        <div class="anzeige nurFahrt"><small id="hudRestTitel">ZIEL</small><b id="hudRest">–</b></div>
+        <div class="anzeige klein nichtTraining"><small>BEUTE</small><b id="hudBeutel">0</b></div>
+        <button class="rund nurTraining" id="neustartSchnell" type="button" aria-label="Training neu starten">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 9a5 5 0 1 1-2-4.5"/><path d="M11 1.5v3.5h-3.5"/></svg>
+        </button>
+        <button class="rund js-ton" id="tonKnopf" type="button" aria-label="Ton an oder aus (M)" aria-pressed="true">
+          <svg viewBox="0 0 16 16" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true"><path d="M2 6h3v4H2zM5 5h1v6H5zM6 4h1v8H6zM7 3h1v10H7z"/><path class="welle" d="M10 6h1v4h-1zM12 4h1v8h-1z"/><path class="aus" d="M10 5h1v1h-1zM11 6h1v1h-1zM12 7h1v2h-1zM13 9h1v1h-1zM14 10h1v1h-1zM14 5h1v1h-1zM13 6h1v1h-1zM11 9h1v1h-1zM10 10h1v1h-1z"/></svg>
+        </button>
+      </div>
+      <div class="hudzeile nurFahrt">
+        <div class="balken" id="zustandBalken" role="meter" aria-label="Fahrzeugzustand" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i><span>ZUSTAND</span></div>
+        <div class="balken nichtTraining" id="druckBalken" role="meter" aria-label="Verfolgungsdruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><span>DRUCK</span></div>
+        <div class="balken" id="boostBalken" role="meter" aria-label="Boost" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i><span>BOOST</span></div>
+      </div>
+    </div>
+    <div id="lenkflaeche" aria-hidden="true">
+      <p id="lenkHinweis"><b>◀</b> HIER ZIEHEN ZUM LENKEN <b>▶</b></p>
+      <button class="steuerknopf" id="linksKnopf" type="button" aria-label="Nach links lenken (Pfeil links)">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10 3 4 8l6 5z"/></svg>
+      </button>
+      <button class="steuerknopf" id="rechtsKnopf" type="button" aria-label="Nach rechts lenken (Pfeil rechts)">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m6 3 6 5-6 5z"/></svg>
+      </button>
+    </div>
+    <button class="steuerknopf" id="boostKnopf" type="button" aria-label="Boost halten (Leertaste)"><i class="fuell"></i><span>BOOST</span></button>
+    <button class="steuerknopf" id="aktionKnopf" type="button" aria-label="Impuls auslösen (Leertaste)">IMPULS!</button>
+    <button class="btn klein" id="ueberspringenKnopf" type="button" hidden>Überspringen ›</button>
+    <p id="tastenTipp" hidden></p>
+    <p id="meldung" role="status" aria-live="polite"></p>
+    <p id="hinweis" aria-live="polite" hidden></p>
+  </main>
+</div>
+<p id="ansage" class="sr" aria-live="assertive"></p>
+
+<div id="fenster">
+  <div class="tafel" role="dialog" aria-modal="true" aria-labelledby="fStartTitel">
+    <section id="fStart">
+      <p class="marke"><svg aria-hidden="true"><use href="#logo"/></svg>PIXELHAFEN</p>
+      <h1 id="fStartTitel">NACHTSCHICHT<small>HAFENBANDE</small></h1>
+      <canvas id="startTitel" width="640" height="320" aria-hidden="true"></canvas>
+      <p class="unterzeile">Comic-Coup am Kai, dann ab über die Hafenautobahn!</p>
+      <p class="duell" id="startDuell" hidden></p>
+      <div class="knoepfe">
+        <button class="btn main" id="auftragWahlKnopf" type="button">Auftrag wählen</button>
+        <button class="btn" id="trainingKnopf" type="button">Training</button>
+        <div class="knoepfe zwei" style="margin-top:0">
+          <button class="btn klein" id="soundKnopf" type="button">Sound</button>
+          <button class="btn klein" id="steuerungKnopf" type="button">Steuerung</button>
+        </div>
+        <div class="knoepfe zwei" style="margin-top:0">
+          <button class="btn klein" id="freundeKnopf" type="button">Freunde herausfordern</button>
+          <a class="btn klein" href="https://moje9328.github.io/spiele/">Zur Pixelhafen-Seite</a>
+        </div>
+      </div>
+      <p class="hinweistext">Alles erfunden und überzeichnet: Orte, Fahrzeuge, das Wertterminal. Beutetaschen sind reine Spielpunkte.</p>
+    </section>
+
+    <section id="fAuftraege" hidden>
+      <div class="zeile zurueck">
+        <h2 id="fAuftraegeTitel">Auftrag wählen</h2>
+        <button class="btn klein js-zurueck" type="button">Zurück</button>
+      </div>
+      <div class="auftraege" id="auftragListe"></div>
+      <label class="schalter" id="ueberspringenZeile"><input type="checkbox" id="ueberspringenWahl"> Coup überspringen (bei geschafften Aufträgen, ohne Coup-Punkte)</label>
+    </section>
+
+    <section id="fSound" hidden>
+      <div class="zeile zurueck">
+        <h2 id="fSoundTitel">Sound</h2>
+        <button class="btn klein js-zurueck" type="button">Zurück</button>
+      </div>
+      <button class="btn js-ton" type="button" aria-pressed="true" style="width:100%">Ton: an</button>
+      <div class="regler"><label for="pegelEffekte">Effekte</label><output id="pegelEffekteWert">80 %</output><input type="range" id="pegelEffekte" min="0" max="100" step="5"></div>
+      <div class="regler"><label for="pegelFahrt">Motor &amp; Sirene</label><output id="pegelFahrtWert">55 %</output><input type="range" id="pegelFahrt" min="0" max="100" step="5"></div>
+      <div class="regler"><label for="pegelMusik">Musik</label><output id="pegelMusikWert">35 %</output><input type="range" id="pegelMusik" min="0" max="100" step="5"></div>
+      <p class="hinweistext">Ton startet erst nach deiner ersten Berührung oder Taste. M schaltet ihn jederzeit an oder aus.</p>
+    </section>
+
+    <section id="fSteuerung" hidden>
+      <div class="zeile zurueck">
+        <h2 id="fSteuerungTitel">Steuerung</h2>
+        <button class="btn klein js-zurueck" type="button">Zurück</button>
+      </div>
+      <ul class="regeln">
+        <li><h3>Handy &amp; Tablet</h3><ul>
+          <li>Finger auf die <b>untere Steuerfläche</b> legen und nach links oder rechts ziehen. Das Auto folgt deiner Bewegung, es springt nicht zum Finger.</li>
+          <li>Loslassen: Das Auto bleibt in seiner Spur.</li>
+          <li><b>BOOST</b>-Knopf gedrückt halten für einen kurzen Schub.</li></ul></li>
+        <li><h3>Computer</h3><ul>
+          <li>← → oder A / D lenken, Leertaste (oder ↑ / W) = Boost.</li>
+          <li>Mit der Maus kannst du auf der Straße ziehen.</li>
+          <li>P oder Esc: Pause. M: Ton.</li></ul></li>
+        <li><h3>Coup</h3><p>Tippen, Leertaste oder der IMPULS-Knopf, wenn der Zeiger im hellen Feld steht. Danach die fliegenden Beutetaschen im Ring fangen.</p></li>
+        <li><h3>Fahrt</h3><ul>
+          <li>Weiche dem Verkehr aus. Blinkende Autos wechseln gleich die Spur.</li>
+          <li>Unfälle kosten Zustand und erhöhen den Druck.</li>
+          <li>Streifen kündigen sich unten mit einem blauen Pfeil an. Abstand und Streckenmarken senken den Druck.</li>
+          <li>Ist der Druck voll, hast du ein paar Sekunden, um ihn wieder zu senken.</li></ul></li>
+      </ul>
+      <label class="schalter"><input type="checkbox" id="knoepfeWahl"> Große Links-/Rechts-Knöpfe zusätzlich anzeigen</label>
+      <p class="wahltitel" id="empfTitel">LENKEMPFINDLICHKEIT</p>
+      <div class="wahl drei" role="group" aria-labelledby="empfTitel">
+        <button class="btn klein js-empf" type="button" data-wert="0.7">Ruhig</button>
+        <button class="btn klein js-empf" type="button" data-wert="1">Normal</button>
+        <button class="btn klein js-empf" type="button" data-wert="1.35">Flink</button>
+      </div>
+    </section>
+
+    <section id="fPause" hidden>
+      <h2 id="fPauseTitel">Pause</h2>
+      <p class="hinweistext" id="pauseText">Alles steht still, bis du weiterspielst.</p>
+      <div class="knoepfe">
+        <button class="btn main" id="weiterKnopf" type="button">Weiter</button>
+        <div class="knoepfe zwei" style="margin-top:0">
+          <button class="btn klein" id="neustartKnopf" type="button">Neu starten</button>
+          <button class="btn klein js-ton" type="button" aria-pressed="true">Ton: an</button>
+        </div>
+        <div class="knoepfe zwei" style="margin-top:0">
+          <button class="btn klein" id="pauseSteuerungKnopf" type="button">Steuerung</button>
+          <button class="btn klein" id="pauseMenueKnopf" type="button">Aufträge</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="fErgebnis" hidden>
+      <h2 id="fErgebnisTitel">Auftrag geschafft!</h2>
+      <canvas id="ergebnisBild" width="640" height="320" aria-hidden="true"></canvas>
+      <p class="ergebnisgrund" id="ergebnisGrund"></p>
+      <dl class="zahlen" id="ergebnisZahlen"></dl>
+      <p class="hervor" id="ergebnisBest" hidden></p>
+      <div class="knoepfe">
+        <button class="btn main" id="nochmalKnopf" type="button">Noch einmal</button>
+        <div class="knoepfe zwei" style="margin-top:0">
+          <button class="btn klein" id="ergebnisAuftraegeKnopf" type="button">Aufträge</button>
+          <button class="btn klein" id="ergebnisFreunde" type="button">Freunde herausfordern</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<div id="drehen" aria-live="polite">
+  <svg width="64" height="64" viewBox="0 0 16 16" fill="none" stroke="#24D6CD" stroke-width="1.4" aria-hidden="true"><rect x="5" y="1.5" width="6" height="13" rx="1.2"/><path d="M7 12.5h2"/></svg>
+  <p>BITTE HOCHKANT DREHEN</p>
+  <small>Die Fahrt ist für das Hochformat gebaut.</small>
+</div>
+<script>
+%%SPIEL%%
+</script>
+</body>
+</html>

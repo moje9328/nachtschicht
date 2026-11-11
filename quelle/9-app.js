@@ -188,7 +188,7 @@
 
   // ---------------------------------------------------------------
   // Fenster
-  const ABSCHNITTE_FENSTER = ['fStart', 'fAuftraege', 'fSound', 'fSteuerung', 'fPause', 'fErgebnis'];
+  const ABSCHNITTE_FENSTER = ['fStart', 'fAuftraege', 'fGarage', 'fSound', 'fSteuerung', 'fPause', 'fErgebnis'];
   let fensterZurueck = 'fStart';
   function zeigeFenster(id) {
     const f = $('fenster');
@@ -196,7 +196,7 @@
     f.hidden = false;
     for (const a of ABSCHNITTE_FENSTER) $(a).hidden = a !== id;
     f.querySelector('.tafel').setAttribute('aria-labelledby', id + 'Titel');
-    f.querySelector('.tafel').classList.toggle('breit', id === 'fSteuerung' || id === 'fAuftraege');
+    f.querySelector('.tafel').classList.toggle('breit', id === 'fSteuerung' || id === 'fAuftraege' || id === 'fGarage');
     const erster = $(id).querySelector('.btn.main') || $(id).querySelector('.auftrag') || $(id).querySelector('.btn');
     if (erster) erster.focus({ preventScroll: true });
   }
@@ -212,7 +212,65 @@
   $('nochmalKnopf').addEventListener('click', () => { Ton.klick(); if (lauf) starteAuftrag(lauf.id, lauf.mitCoup); });
   $('ergebnisAuftraegeKnopf').addEventListener('click', () => { Ton.klick(); if (lauf && lauf.id !== 'endlos') { beendeLauf(); zeigeAuftraege(); } else zeigeStart(); });
 
+  // ---------------------------------------------------------------
+  // Aufgaben, Sterne, Garage
+  const aktuellerLack = () => LACKE.find(l => l.id === Speicher.lack) || LACKE[0];
+  Grafik.menueLack = aktuellerLack();
+  function aufgabeZeile(a, laufWerte, gesamt, fertig) {
+    const li = document.createElement('li');
+    const wert = Math.min(a.ziel, aufgabeWert(a, laufWerte, gesamt));
+    const zeig = v => (a.wert === 'strecke' ? `${(v / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} km` : Math.floor(v).toLocaleString('de-DE'));
+    li.innerHTML = `<span class="stern">★</span><span></span><span class="stand"></span>`;
+    li.children[1].textContent = a.text;
+    li.children[2].textContent = fertig ? 'ERFÜLLT' : `${zeig(wert)}/${zeig(a.ziel)}`;
+    if (fertig) li.classList.add('fertig');
+    return li;
+  }
+  function zeigeAufgaben() {
+    const st = Speicher.aufgabenStand(), ges = Speicher.gesamt();
+    $('startSterne').textContent = `★ ${st.sterne}`;
+    const naechster = LACKE.find(l => l.sterne > st.sterne);
+    $('startStufe').textContent = naechster ? `NOCH ${naechster.sterne - st.sterne} ★ BIS „${naechster.name.toUpperCase()}“` : 'ALLE LACKE FREI';
+    const ul = $('startAufgaben'); ul.textContent = '';
+    for (const n of st.aktiv) ul.appendChild(aufgabeZeile(AUFGABEN.nr(n), {}, ges, false));
+  }
+  function zeigeGarage() {
+    fensterZurueck = 'fStart';
+    const st = Speicher.aufgabenStand();
+    $('garageText').textContent = `Du hast ★ ${st.sterne}. Erfülle Aufgaben, sammle Sterne und schalte neue Lackierungen frei.`;
+    const liste = $('lackListe'); liste.textContent = '';
+    for (const l of LACKE) {
+      const k = document.createElement('button');
+      k.type = 'button'; k.className = 'lack'; k.dataset.lack = l.id;
+      const frei = st.sterne >= l.sterne;
+      k.disabled = !frei; k.setAttribute('aria-pressed', String(Speicher.lack === l.id));
+      const cv2 = document.createElement('canvas'); cv2.width = 144; cv2.height = 192;
+      const c2 = cv2.getContext('2d'); c2.translate(72, 88); c2.scale(92, 92); Grafik.malKombi(c2, 1.25, { lack: l, ohneSchatten: true });
+      const name = document.createElement('span'); name.textContent = l.name;
+      const info = document.createElement('small'); info.textContent = frei ? (Speicher.lack === l.id ? 'Aktiv' : 'Wählen') : `★ ${l.sterne} nötig`;
+      k.append(cv2, name, info);
+      k.addEventListener('click', () => { if (!frei) return; Speicher.lack = l.id; Grafik.menueLack = l; Ton.klick(); zeichneTitel(); zeigeGarage(); });
+      liste.appendChild(k);
+    }
+    zeigeFenster('fGarage');
+  }
+  $('garageKnopf').addEventListener('click', () => { Ton.klick(); zeigeGarage(); });
+  // Werte des laufenden Laufs für die Aufgaben
+  function laufWerte(F) {
+    const s = F.w.statistik;
+    return { strecke: F.sp.d, knapp: s.knapp, felder: s.boostFelder, tempo: s.maxTempo * 3.6, ueberholt: s.ueberholt, kombo: s.maxKombo, serie: s.besteSerie, punkte: F.summe() };
+  }
+  function pruefeLaufAufgaben() {
+    if (!lauf || !lauf.aufgaben || !lauf.fahrt) return;
+    for (const a of pruefeAufgaben(lauf.aufgaben, laufWerte(lauf.fahrt), lauf.gesamtStart, lauf.neueAufgaben)) {
+      lauf.erfuellt.push(a);
+      melde(`★ AUFGABE ERFÜLLT!\n${a.text.toUpperCase()}`, 2.2);
+      Ton.marke();
+    }
+  }
+
   function zeigeStart() {
+    zeigeAufgaben();
     beendeLauf();
     const r = Speicher.beste('endlos');
     $('startRekord').hidden = !r.versuche;
@@ -294,7 +352,9 @@
         ? { gespielt: false, uebersprungen: true, timing: 0, beutel: 0, beutelPunkte: 0, perfekte: 0, gute: 0, daneben: 0 }
         : { gespielt: true, uebersprungen: false, timing: Math.max(0, C.trefferPunkte - C.abzug), beutel: C.gefangen, beutelPunkte: C.gefangen * PUNKTE.beutel, perfekte: C.perfekte, gute: C.gute, daneben: C.daneben };
     lauf.coup = null;
-    lauf.fahrt = erstelleFahrt(lauf.id, { seed: lauf.seed });
+    lauf.fahrt = erstelleFahrt(lauf.id, { seed: lauf.seed, rekordD: lauf.id === 'endlos' ? Speicher.beste('endlos').strecke : 0 });
+    lauf.aufgaben = lauf.id === 'endlos' ? Speicher.aufgabenStand() : null;
+    lauf.gesamtStart = Speicher.gesamt(); lauf.erfuellt = []; lauf.aufgabenUhr = 0; lauf.neueAufgaben = new Set();
     lauf.startUhr = lauf.id === 'endlos' ? 0.6 : 1.1;
     Grafik.partikelLeeren(); Grafik.leereBlasen();
     $('hudBeuteFeld').classList.toggle('ausgeblendet', !lauf.coupErgebnis.gespielt);
@@ -389,7 +449,12 @@
         case 'rempler': Ton.rempler(); Grafik.blase('BONK', e.d, e.x, '#B5CBE0', 0.7, 0.8); break;
         case 'ueberholt': Ton.ueberholt(e.serie); break;
         case 'serie': Ton.serie(); Grafik.blase('SAUBERE SERIE!', sp.d + 12, 0, '#24D6CD', 1.1, 1); Grafik.blase(`+${e.punkte}`, sp.d + 8, 0, '#24D6CD', 1.0, 0.8); break;
-        case 'knapp': Ton.knapp(); Grafik.blase('KNAPP VORBEI!', sp.d + 7, sp.x, '#FF4FD8', 0.9, 0.8); zeigeHinweis('knapp', 'Knapp vorbei gibt einen kleinen Bonus – pro Auto nur einmal.', 3); break;
+        case 'knapp': Ton.knapp(e.kombo); Grafik.blase(e.kombo > 1 ? `KNAPP! ×${e.kombo}` : 'KNAPP VORBEI!', sp.d + 7, sp.x, '#FF4FD8', 0.9, 0.8 + Math.min(0.5, e.kombo * 0.06)); zeigeHinweis('knapp', 'Knapp vorbei startet die Kombo: Jedes weitere knappe Manöver erhöht den Multiplikator!', 3.5); break;
+        case 'komboEnde': Ton.komboEnde(); break;
+        case 'rekord':
+          Ton.rekord(); melde('NEUER REKORD!', 1.8, 'gross'); Grafik.blase('REKORD!', sp.d + 10, 0, '#FFD35A', 1.4, 1.3);
+          for (let i = 0; i < (bewegungRuhig.matches ? 10 : 36); i++) Grafik.weltPartikel({ art: 'funke', d: sp.d + 6 + Math.random() * 8, x: (Math.random() - 0.5) * 12, h: 2 + Math.random() * 2, vh: 2 + Math.random() * 3, g: 5, vd: sp.v * 0.85, vx: (Math.random() - 0.5) * 4, dauer: 1.3, groesse: 0.3, farbe: ['#24D6CD', '#FFD35A', '#FF4FD8', '#FF9A3D'][i % 4] });
+          break;
         case 'marke': Ton.marke(); melde(`STRECKENMARKE ${e.nr}/${e.von - 1}\n${e.abschnitt.toUpperCase()}`, 1.8); Grafik.blase(`+${e.punkte}`, sp.d + 5, sp.x, '#24D6CD', 1.0, 1); zeigeHinweis('marke', 'Streckenmarken geben Punkte und senken den Verfolgungsdruck.', 3.5); break;
         case 'polizeiWarnung': Ton.polizeiWarnung(); zeigeHinweis('polizei', 'Eine Streife kommt von hinten (blauer Pfeil unten). Abstand halten, Boostfelder nutzen, sauber fahren!', 4.5, true); break;
         case 'polizeiDa': break;
@@ -446,6 +511,10 @@
     const druckSicht = !lauf.A.ohneDruck && (F.w.polizei.length > 0 || F.w.anmeldungen.length > 0 || F.w.druck > 0.5);
     if (hudAlt.druckSicht !== druckSicht) { hudAlt.druckSicht = druckSicht; $('druckBalken').classList.toggle('ausgeblendet', !druckSicht); }
         setzeBalken('druckBalken', F.w.druck, F.w.warnung >= 0 ? 'w' : '');
+    // Kombo: Multiplikator mit ablaufender Zeit
+    const ko = F.w.kombo;
+    if (hudAlt.komboSicht !== (ko > 1)) { hudAlt.komboSicht = ko > 1; $('komboAnzeige').hidden = ko <= 1; }
+    if (ko > 1) { setzeBalken('komboAnzeige', F.w.komboRest / PUNKTE.komboZeit * 100); setzeText('komboText', `KOMBO ×${ko}`); }
     // Wirkzeit nur während des Effekts (kein Vorrat, kein Bedienelement)
     const an = F.sp.boostAn;
     if (hudAlt.boostSicht !== an) { hudAlt.boostSicht = an; $('boostWirkung').hidden = !an; }
@@ -495,6 +564,21 @@
     const g = document.createElement('div'); g.className = 'gross';
     const gdt = document.createElement('dt'); gdt.textContent = 'Gesamt'; const gdd = document.createElement('dd'); gdd.textContent = zahl(gesamt);
     g.append(gdt, gdd); dl.appendChild(g);
+    // Aufgaben: letzte Prüfung, dann Lauf sichern
+    const vorherSterne = lauf.aufgaben ? Speicher.aufgabenStand().sterne : 0;
+    if (lauf.aufgaben) { pruefeLaufAufgaben(); Speicher.sichereLauf(lauf.aufgaben, laufWerte(F)); }
+    const ul = $('ergebnisAufgaben'); ul.textContent = '';
+    if (lauf.aufgaben) {
+      const ges = Speicher.gesamt();
+      for (const a of lauf.erfuellt) ul.appendChild(aufgabeZeile(a, {}, ges, true));
+      for (const n of lauf.aufgaben.aktiv) ul.appendChild(aufgabeZeile(AUFGABEN.nr(n), {}, ges, false));
+    }
+    const neuerLack = LACKE.find(l => l.sterne > vorherSterne && l.sterne <= (lauf.aufgaben ? lauf.aufgaben.sterne : 0));
+    $('ergebnisRekord').textContent = endlos ? (alterRekord.strecke > 0 && F.sp.d < alterRekord.strecke
+      ? (alterRekord.strecke - F.sp.d < 1 ? 'Genau so weit wie dein Rekord!' : `Noch ${Math.round(alterRekord.strecke - F.sp.d).toLocaleString('de-DE')} m bis zu deinem Rekord!`)
+      : alterRekord.strecke > 0 ? `${Math.round(F.sp.d - alterRekord.strecke).toLocaleString('de-DE')} m weiter als dein alter Rekord!` : 'Dein erster Rekord steht!')
+      + (neuerLack ? ` Neue Lackierung frei: „${neuerLack.name}“ (Garage).` : '') : '';
+    $('ergebnisPunkte').textContent = zahl(gesamt);
     const bestEl = $('ergebnisBest');
     bestEl.hidden = false;
     if (endlos) bestEl.textContent = `${neu.punkte ? 'NEUER REKORD' : 'REKORD'}: ${zahl(best.punkte)} · ${(best.strecke / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} KM`;
@@ -563,12 +647,16 @@
       const e = botEingabe ? botEingabe() : Eingabe.lesen();
       lauf.fahrt.schritt(e);
       if (lauf.id === 'endlos') {
+        const W = lauf.fahrt.w;
+        if (W.rekordD > 400 && !lauf.rekordNah && W.rekordD - lauf.fahrt.sp.d < 200 && W.rekordD - lauf.fahrt.sp.d > 0) { lauf.rekordNah = true; melde('NOCH 200 M BIS ZUM REKORD!', 1.6); }
         const kmh = Math.floor(lauf.fahrt.w.vGrund * 3.6 / 20) * 20;
         if (!lauf.kmhMarke) lauf.kmhMarke = kmh;
         if (kmh > lauf.kmhMarke) { lauf.kmhMarke = kmh; melde(`TEMPO ${kmh} KM/H!`, 1.3); Ton.marke(); }
       }
       if (lauf.fahrt.w.felder.some(f => f.status === 'offen' && f.d - lauf.fahrt.sp.d < ANSICHT.vorne)) zeigeHinweis('felder', 'Fahre über die leuchtenden Pfeilfelder für einen Temposchub!', 4, true);
       lauf.gesamtZeit += dt;
+      lauf.aufgabenUhr -= dt;
+      if (lauf.aufgabenUhr <= 0 && lauf.fahrt.w.phase === 'fahrt') { lauf.aufgabenUhr = 0.5; pruefeLaufAufgaben(); }
       verarbeiteFahrtEreignisse();
     }
   }
@@ -576,7 +664,7 @@
     c.setTransform(lay.dpr, 0, 0, lay.dpr, 0, 0);
     c.fillStyle = '#10243A'; c.fillRect(0, 0, lay.breite, lay.hoehe);
     if (lauf && lauf.coup) Grafik.zeichneCoup(c, lay, lauf.coup, uhr, coupText ? { text: coupText.text, textZeit: coupText.zeit, textFarbe: coupText.farbe } : {});
-    else if (lauf && lauf.fahrt) Grafik.zeichneFahrt(c, lay, lauf.fahrt, uhr, { ruetteln: lauf.ruetteln });
+    else if (lauf && lauf.fahrt) Grafik.zeichneFahrt(c, lay, lauf.fahrt, uhr, { ruetteln: lauf.ruetteln, lack: aktuellerLack() });
     else Grafik.zeichneMenue(c, lay, uhr * (bewegungRuhig.matches ? 0.3 : 1), menueStrecke);
   }
   function rahmen(jetzt) {

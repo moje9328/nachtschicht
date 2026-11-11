@@ -177,3 +177,33 @@ GitHub-Repo `moje9328/nachtschicht` anlegen, Pages aus main /, pushen; in `~/spi
 - Bots (Spurwechsel per Tipp), Median bis zum Crash: perfekt 47 s (2,4 km, 212 km/h), menschenähnlich 36 s, schwach 21 s. Keine vom Planer erzeugten Wände.
 
 **Nicht geprüft:** echtes Handy; ob Menschen den Einstieg als fair empfinden.
+
+## Runde 6 (11.11.2026): Suchtfaktor – Kombo, Rekordlinie, Aufgaben, Garage
+
+**Wunsch:** Das Spiel soll ein richtiger Klassiker mit Suchtfaktor werden.
+
+**Änderungen:**
+- **Risiko-Kombo** (`PUNKTE.komboMax` 8, `komboZeit` 5 s):
+  - Jedes „knapp vorbei“ erhöht den Multiplikator um 1 und frischt die Zeit auf. Normales Überholen hält die Kombo nicht am Leben.
+  - Die Kombo multipliziert Überhol-, Knapp- und Boostfeld-Punkte; die Streckenpunkte steigen um +25 % je Stufe.
+  - HUD: „KOMBO ×n“ mit ablaufendem Balken. Die Tonhöhe steigt mit der Kombo, beim Verfallen gibt es ein kurzes Signal.
+- **Rekordlinie:**
+  - Eine Neonlinie „DEIN REKORD“ liegt auf der Straße bei der bisher weitesten Strecke.
+  - 200 m vorher erscheint der Hinweis „NOCH 200 M BIS ZUM REKORD!“. Beim Überfahren gibt es „NEUER REKORD!“, Konfetti und eine Fanfare.
+  - Das Ergebnis zeigt „Noch X m bis zu deinem Rekord!“ bzw. wie viel weiter als der alte Rekord.
+- **Aufgaben** (`4-aufgaben.js`):
+  - Immer drei sind aktiv. 21 feste Aufgaben (z. B. 1 km, Kombo ×3, 190 km/h, insgesamt 10 km), danach endlos wachsende Ziele.
+  - Jede erfüllte Aufgabe gibt einen Stern; mitten im Lauf erscheint „★ AUFGABE ERFÜLLT!“.
+  - Neue Aufgaben zählen erst ab dem nächsten Lauf (keine Sternenketten), also höchstens drei Sterne pro Lauf.
+- **Garage:** 6 eigene Lackierungen für den Kombi (Nachtviolett, Sonnenuntergang 3★, Eisblau 6★, Neongrün 10★, Goldrausch 14★, Chrom-Magenta 18★). Rein kosmetisch.
+- **Ergebnisbildschirm neu geordnet:**
+  - Oben stehen große Punktzahl, Rekord und Rekordabstand, direkt darunter „Sofort nochmal“, ohne Scrollen.
+  - Danach folgen die Aufgaben; die Punkteaufschlüsselung ist aufklappbar.
+- **Punkte neu gewichtet:** Strecke 1 Punkt/m (vorher 0,1), Überholen 20 (vorher 40), Seriensteigerung 5 % (vorher 10 %), Knapp 100 (vorher 75).
+- **Speicher:** Version 2 mit neuen Feldern `aufgaben`, `gesamt`, `lack` (fehlen sie, gelten Standardwerte).
+
+**Tests:**
+- Logik 197/197. Neu: Kombo ×2/×3 und Multiplikation, Verfallen, Rekordereignis genau einmal, Aufgaben ohne Kette, Gesamt-Aufgaben, wachsende Endlos-Aufgaben, Lackierungs-Schwellen.
+- Browser Chromium 111/111, WebKit 106/106. Neu: Start mit 3 Aufgaben und Sternzähler, Garage mit 5 gesperrten Lackierungen, Kombo-Anzeige an/aus, Rekordstrecke im neuen Lauf, „Sofort nochmal“ ohne Scrollen sichtbar, Gesamtwerte gespeichert.
+
+**Nicht geprüft:** echtes Handy; ob das Belohnungstempo für Menschen passt (nur Bots).

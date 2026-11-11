@@ -195,7 +195,20 @@ const Ton = (() => {
     rempler() { if (bereit() && frei(0.2)) { ton(150, 90, 0.12, { typ: 'sine', laut: 0.12 }); } },
     ueberholt(serie) { if (bereit() && frei(0.08)) { const f = 600 + Math.min(10, serie) * 40; ton(f, f * 1.2, 0.06, { typ: 'triangle', laut: 0.045 }); } },
     serie() { if (bereit() && frei(0.5)) { [659, 880, 1109, 1319].forEach((f, i) => ton(f, f, 0.1, { typ: 'square', laut: 0.045, start: i * 0.06 })); ton(1760, 1760, 0.22, { typ: 'triangle', laut: 0.06, start: 0.24 }); } },
-    knapp() { if (bereit() && frei(0.25)) { rausch(0.18, { laut: 0.07, f1: 900, f2: 3500, typ: 'bandpass', q: 2 }); ton(988, 1319, 0.12, { typ: 'triangle', laut: 0.08, start: 0.05 }); } },
+    // knapp vorbei: Tonhöhe steigt mit der Kombo (eine Dur-Tonleiter hinauf)
+    knapp(kombo = 1) {
+      if (!bereit() || !frei(0.25)) return;
+      const stufe = [0, 2, 4, 5, 7, 9, 11, 12][Math.min(7, Math.max(0, kombo - 1))];
+      const f = 784 * Math.pow(2, stufe / 12);
+      rausch(0.14, { laut: 0.06, f1: 900, f2: 3500, typ: 'bandpass', q: 2 });
+      ton(f, f, 0.08, { typ: 'square', laut: 0.05, start: 0.02 }); ton(f * 1.5, f * 1.5, 0.12, { typ: 'triangle', laut: 0.08, start: 0.08 });
+    },
+    komboEnde() { if (bereit() && frei(0.3)) ton(520, 330, 0.22, { typ: 'triangle', laut: 0.06 }); },
+    rekord() {
+      if (!bereit() || !frei(0.8)) return;
+      [523, 659, 784, 1047, 1319].forEach((f, i) => ton(f, f, 0.12, { typ: 'square', laut: 0.05, start: i * 0.07 }));
+      ton(1568, 1568, 0.4, { typ: 'triangle', laut: 0.09, start: 0.35 });
+    },
     marke() { if (bereit() && frei(0.5)) { ton(659, 659, 0.12, { typ: 'triangle', laut: 0.12 }); ton(988, 988, 0.22, { typ: 'triangle', laut: 0.12, start: 0.12 }); } },
     polizeiWarnung() { if (bereit() && frei(0.4)) { ton(740, 740, 0.09, { typ: 'triangle', laut: 0.07 }); ton(587, 587, 0.12, { typ: 'triangle', laut: 0.07, start: 0.14 }); } },
     warnung() { if (!bereit()) return; for (let i = 0; i < 3; i++) ton(880, 880, 0.08, { typ: 'square', laut: 0.05, start: i * 0.16 }); },

@@ -95,11 +95,12 @@ const Grafik = (() => {
 
   // Der Kombi des Spielers: breit, dunkelviolett, türkise Akzente, eigenes Leuchtband
   function malKombi(c, L, o = {}) {
-    const glanz = '#6A3BB8', basis = '#3B1C6B', dunkel = '#26113F', tuerkis = '#24D6CD', magenta = '#FF4FD8';
+    const lk = o.lack || LACKE[0];
+    const glanz = lk.glanz, basis = lk.basis, dunkel = lk.dunkel, tuerkis = lk.akzent, magenta = lk.akzent2;
     if (!o.ohneSchatten) {
       // dezentes türkises Bodenleuchten macht den Spieler immer gut erkennbar
       const g = c.createRadialGradient(0, L * 0.1, 0.1, 0, L * 0.1, L * 0.75);
-      g.addColorStop(0, 'rgba(36, 214, 205, 0.32)'); g.addColorStop(1, 'rgba(36, 214, 205, 0)');
+      g.addColorStop(0, rgba(tuerkis, 0.32)); g.addColorStop(1, rgba(tuerkis, 0));
       c.fillStyle = g; c.beginPath(); c.ellipse(0, L * 0.12, 0.95, L * 0.7, 0, 0, 7); c.fill();
       schatten(c, L);
     }
@@ -119,8 +120,8 @@ const Grafik = (() => {
     for (const s of [-1, 1]) { rr(c, s * 0.5 - (s > 0 ? 0.05 : 0), -L * 0.2, 0.05, L * 0.62, 0.02); c.fill(); }
     // Langes Kombidach mit Scheiben
     c.fillStyle = '#121A33'; rr(c, -0.38, -L * 0.27, 0.76, L * 0.74, 0.12); c.fill();
-    c.fillStyle = '#4A2585'; rr(c, -0.32, -L * 0.15, 0.64, L * 0.5, 0.08); c.fill();
-    c.fillStyle = 'rgba(36, 214, 205, 0.55)'; c.fillRect(-0.3, -L * 0.24, 0.6, 0.03);   // Spiegelung Frontscheibe
+    c.fillStyle = lk.dach; rr(c, -0.32, -L * 0.15, 0.64, L * 0.5, 0.08); c.fill();
+    c.fillStyle = rgba(tuerkis, 0.55); c.fillRect(-0.3, -L * 0.24, 0.6, 0.03);   // Spiegelung Frontscheibe
     // Dachreling
     c.fillStyle = tuerkis; for (const s of [-1, 1]) c.fillRect(s * 0.27 - 0.02, -L * 0.13, 0.04, L * 0.44);
     // Dachspoiler
@@ -130,7 +131,7 @@ const Grafik = (() => {
     c.fillStyle = dunkel; rr(c, -0.52, L / 2 - 0.04, 1.04, H + 0.04, 0.09); c.fill();
     c.fillStyle = '#0D0A1A'; rr(c, -0.36, L / 2 + 0.01, 0.72, H * 0.38, 0.05); c.fill();   // Heckscheibe
     const yb = L / 2 + H * 0.5, hb = H * 0.26;
-    c.fillStyle = 'rgba(36, 214, 205, 0.25)'; rr(c, -0.5, yb - 0.04, 1.0, hb + 0.08, 0.05); c.fill();
+    c.fillStyle = rgba(tuerkis, 0.25); rr(c, -0.5, yb - 0.04, 1.0, hb + 0.08, 0.05); c.fill();
     c.fillStyle = tuerkis;
     for (let i = -3; i <= 3; i++) {
       const xx = i * 0.11, r = i < 0 ? 1 : -1;
@@ -153,7 +154,7 @@ const Grafik = (() => {
       }
     }
     // feine helle Kontur
-    c.strokeStyle = 'rgba(181, 140, 255, 0.9)'; c.lineWidth = 0.03;
+    c.strokeStyle = misch(glanz, '#FFFFFF', 0.45); c.lineWidth = 0.03;
     rr(c, -0.53, -L / 2, 1.06, L + H, 0.14); c.stroke();
   }
 
@@ -632,6 +633,19 @@ const Grafik = (() => {
       marke(c, P, md, strecke.endlos ? `${t.name.toUpperCase()} · MARKE ${i + 1}` : `MARKE ${i + 1}/${strecke.anzahlMarken} · ${t.name.toUpperCase()}`);
     }
     zielTor(c, P, strecke.zielVon);
+    // Rekordlinie: hier endete dein bester Lauf
+    if (w.rekordD > 0 && w.rekordD > P.dMin - 2 && w.rekordD < P.dMax + 2) {
+      const d = w.rekordD, al = P.alpha(d) * (w.rekordGeknackt ? 0.45 : 1);
+      c.globalAlpha = al;
+      wRect(c, P, d - 0.35, d + 0.35, -P.halb, P.halb, '#FFD35A');
+      wPfad(c, P, d - 0.35, d + 0.35, -P.halb, P.halb); neonLinie(c, '#FF4FD8', 1.5);
+      const gr = Math.max(8, 0.55 * P.pxm);
+      c.font = `${gr}px ${SCHRIFT}`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+      c.lineWidth = gr * 0.3; c.strokeStyle = '#10243A';
+      const t = w.rekordGeknackt ? 'ALTER REKORD' : 'DEIN REKORD';
+      c.strokeText(t, P.x(d, 0), P.y(d) - 4); c.fillStyle = '#FFD35A'; c.fillText(t, P.x(d, 0), P.y(d) - 4);
+      c.globalAlpha = 1;
+    }
     // Fahrzeuge von weit vorne nach hinten (das Heck überlappt das Auto dahinter)
     const liste = [];
     const blinkAn = ruhig ? true : (zeit * 2.6) % 1 < 0.6;
@@ -642,7 +656,7 @@ const Grafik = (() => {
     const phase = ruhig ? (zeit % 1.6) < 0.8 : (zeit * 5) % 2 < 1;
     for (const p of w.polizei) liste.push({ d: p.d, mal: cc => zeichneFahrzeug(cc, P, p, 'streife', { licht: w.phase === 'fahrt' ? 1 : 0.3, phase, wackel: p.wackel, fragend: p.fragend }) });
     const schutzBlink = sp.schutz > 0 && !ruhig && (zeit * 12) % 2 < 1;
-    liste.push({ d: sp.d, spieler: true, mal: cc => zeichneFahrzeug(cc, P, sp, 'spieler', { neigung: sp.neigung, boost: sp.boostAn, zeit, alpha: schutzBlink ? 0.55 : 1 }) });
+    liste.push({ d: sp.d, spieler: true, mal: cc => zeichneFahrzeug(cc, P, sp, 'spieler', { neigung: sp.neigung, boost: sp.boostAn, zeit, alpha: schutzBlink ? 0.55 : 1, lack: extra.lack }) });
     liste.sort((a, b) => b.d - a.d || (a.spieler ? 1 : -1));
     for (const e of liste) e.mal(c);
     for (const f of w.felder) feldVorschau(c, P, f, zeit);
@@ -689,12 +703,12 @@ const Grafik = (() => {
     kulisse(c, P, strecke, lay.breite);
     lichtpfuetzen(c, P, strecke);
     markierungen(c, P, strecke);
-    zeichneFahrzeug(c, P, fake, 'spieler', {});
+    zeichneFahrzeug(c, P, fake, 'spieler', { lack: Grafik.menueLack });
     abdunkeln(c, lay);
   }
 
   // Titelbild: 80er-Neonsonne über dem Meer, Palmen-Silhouetten, der Kombi als Hauptmotiv
-  function zeichneTitel(c, w, h, zeit) {
+  function zeichneTitel(c, w, h, zeit, lack) {
     c.clearRect(0, 0, w, h);
     const g = c.createLinearGradient(0, 0, 0, h * 0.55);
     g.addColorStop(0, '#120B30'); g.addColorStop(0.7, '#3A1656'); g.addColorStop(1, '#7A2A6E');
@@ -727,7 +741,7 @@ const Grafik = (() => {
     c.save();
     const bw = h * 0.34;
     c.translate(w / 2, h * 0.68); c.scale(bw, bw);
-    malKombi(c, 1.15, { boost: true, zeit });
+    malKombi(c, 1.15, { boost: true, zeit, lack: lack || Grafik.menueLack });
     c.restore();
   }
 
@@ -877,6 +891,7 @@ const Grafik = (() => {
   }
 
   return {
+    menueLack: null,
     setzeRuhig, projektion, zeichneFahrt, zeichneMenue, zeichneTitel, zeichneCoup, malKombi, beutel,
     weltPartikel, bildPartikel, partikelSchritt, partikelLeeren, blase, blasenSchritt,
     anzahlPartikel: () => welt.length + bild.length,

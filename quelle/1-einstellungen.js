@@ -68,9 +68,10 @@ const DRUCK = {
 
 const PUNKTE = {
   perfekt: 300, gut: 150, daneben: -50, beutel: 250,
-  proMeter: 0.1, boostFaktor: 1.5, boostFeld: 100,
-  ueberholen: 40, knapp: 75, knappAbstand: 0.75, serieMax: 10, serieStufe: 0.1,
+  proMeter: 1, boostFaktor: 1.5, boostFeld: 100,
+  ueberholen: 20, knapp: 100, knappAbstand: 0.75, serieMax: 10, serieStufe: 0.05,
   serieBonus: 250, serieSchritt: 10,          // „Saubere Serie!“ alle 10 sauberen Überholungen
+  komboMax: 8, komboZeit: 5,                  // Risiko-Kombo: jedes „knapp vorbei“ +1 (bis ×8), verfällt nach 5 s ohne knappes Manöver
   marke: 300, abschluss: 2500, proZustand: 20, abgehaengt: 150,
 };
 

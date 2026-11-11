@@ -32,8 +32,9 @@ function erstelleFahrt(auftragId, optionen = {}) {
     autos: [], polizei: [], anmeldungen: [], felder: [], naechstesFeld: BOOST.ersteBei,
     druck: 0, warnung: -1, maxDruck: 0,
     punkte: { strecke: 0, boostFelder: 0, serien: 0, ueberholen: 0, knapp: 0, marken: 0, abschluss: 0, zustand: 0, abgehaengt: 0 },
-    statistik: { ueberholt: 0, knapp: 0, unfaelle: 0, polizeiKontakt: 0, abgehaengt: 0, boostZeit: 0, boostFelder: 0, maxTempo: 0, serien: 0, muster: {}, schaden: 0, warnungen: 0, besteSerie: 0 },
+    statistik: { ueberholt: 0, knapp: 0, unfaelle: 0, polizeiKontakt: 0, abgehaengt: 0, boostZeit: 0, boostFelder: 0, maxTempo: 0, serien: 0, maxKombo: 1, muster: {}, schaden: 0, warnungen: 0, besteSerie: 0 },
     serie: 0, letzterUnfall: -99, markeNr: 0,
+    kombo: 1, komboRest: 0, rekordD: optionen.rekordD > 0 ? optionen.rekordD : 0, rekordGeknackt: false,
     ereignisse: [], naechsteId: 1,
     spawnUhr: 0, polizeiUhr: P ? P.erste : 1e9,
     pruefung: { versuche: 0, abgelehnt: 0, wechselAbgelehnt: 0, rechnungen: 0, feldVerschoben: 0 },
@@ -617,7 +618,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
           const auffrischen = sp.boostRest > 0 || sp.boostAnteil > 0.02;
           sp.boostRest = BOOST.dauer;            // auffrischen, nicht addieren
           w.statistik.boostFelder++;
-          w.punkte.boostFelder += PUNKTE.boostFeld;
+          w.punkte.boostFelder += PUNKTE.boostFeld * w.kombo;
           sende('boostFeld', { auffrischen, punkte: PUNKTE.boostFeld, id: f.id });
         }
       } else if (hinten > f.d + f.laenge / 2) f.status = 'verpasst';
@@ -670,7 +671,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       if (A.einTreffer) {
         if (schadenSchon) return;
         schadenSchon = true;
-        sp.zustand = 0; w.serie = 0;
+        sp.zustand = 0; w.serie = 0; w.kombo = 1; w.komboRest = 0;
         sp.v = Math.min(sp.v, b.v + (b.stoss || 0));   // nicht durch das getroffene Auto hindurchrollen
         if (istPolizei) w.statistik.polizeiKontakt++; else w.statistik.unfaelle++;
         sende('unfall', { art, schaden: 100, polizei: istPolizei, x: (sp.x + b.x) / 2, d: (sp.d + b.d) / 2, id: b.id });
@@ -728,7 +729,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       if (!a.vorbei && sp.d > a.d) {
         a.vorbei = true;
         if (!a.getroffen && w.phase === 'fahrt') {
-          const faktor = 1 + Math.min(w.serie, PUNKTE.serieMax) * PUNKTE.serieStufe;
+          const faktor = (1 + Math.min(w.serie, PUNKTE.serieMax) * PUNKTE.serieStufe) * w.kombo;
           const p = Math.round(PUNKTE.ueberholen * faktor);
           w.punkte.ueberholen += p; w.serie++; w.statistik.ueberholt++;
           w.statistik.besteSerie = Math.max(w.statistik.besteSerie, w.serie);
@@ -740,8 +741,12 @@ function erstelleFahrt(auftragId, optionen = {}) {
       if (a.vorbei && !a.knappFertig && sp.d - sp.laenge / 2 > a.d + a.laenge / 2) {
         a.knappFertig = true;
         if (!a.getroffen && a.knappMin < PUNKTE.knappAbstand && w.phase === 'fahrt') {
-          w.punkte.knapp += PUNKTE.knapp; w.statistik.knapp++;
-          sende('knapp', { punkte: PUNKTE.knapp, id: a.id, x: a.x, d: a.d });
+          // Risiko-Kombo: jedes knappe Manöver erhöht den Multiplikator und frischt die Zeit auf
+          w.kombo = Math.min(PUNKTE.komboMax, w.kombo + 1); w.komboRest = PUNKTE.komboZeit;
+          w.statistik.maxKombo = Math.max(w.statistik.maxKombo, w.kombo);
+          const pk = PUNKTE.knapp * w.kombo;
+          w.punkte.knapp += pk; w.statistik.knapp++;
+          sende('knapp', { punkte: pk, kombo: w.kombo, id: a.id, x: a.x, d: a.d });
         }
       }
     }
@@ -793,7 +798,9 @@ function erstelleFahrt(auftragId, optionen = {}) {
     kollisionen();
     wertung();
     if (w.phase === 'fahrt') {
-      w.punkte.strecke += sp.v * DT * PUNKTE.proMeter * (sp.boostAn ? PUNKTE.boostFaktor : 1);
+      w.punkte.strecke += sp.v * DT * PUNKTE.proMeter * (sp.boostAn ? PUNKTE.boostFaktor : 1) * (1 + (w.kombo - 1) * 0.25);
+      if (w.kombo > 1) { w.komboRest -= DT; if (w.komboRest <= 0) { sende('komboEnde', { kombo: w.kombo }); w.kombo = 1; w.komboRest = 0; } }
+      if (w.rekordD > 0 && !w.rekordGeknackt && sp.d > w.rekordD) { w.rekordGeknackt = true; sende('rekord', { d: w.rekordD }); }
       druckUndWarnung();
       w.spawnUhr -= DT;
       if (w.spawnUhr <= 0) { w.spawnUhr = 0.15; versucheSpawn(); planeFelder(); }

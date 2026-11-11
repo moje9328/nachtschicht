@@ -2,7 +2,7 @@
 // Prüft dieselben Dateien wie im Spiel (lade-logik.js).
 const L = require('./lade-logik.js')();
 const mische = (a, b, t) => a + (b - a) * t;
-const { TEMPO_BEZUG, DT, ANSICHT, SPIELER, BOOST, SCHADEN, DRUCK, PUNKTE, AUFTRAEGE, AUFTRAG_LISTE, MODI, FAHRZEUGE, erstelleCoup, erstelleFahrt, Testfahrer, spurX, schwierigkeit, steigerung, baueStrecke } = L;
+const { AUFGABEN, LACKE, pruefeAufgaben, TEMPO_BEZUG, DT, ANSICHT, SPIELER, BOOST, SCHADEN, DRUCK, PUNKTE, AUFTRAEGE, AUFTRAG_LISTE, MODI, FAHRZEUGE, erstelleCoup, erstelleFahrt, Testfahrer, spurX, schwierigkeit, steigerung, baueStrecke } = L;
 const SCHNELL = process.argv.includes('schnell');
 let geprueft = 0, fehler = 0;
 function ok(bed, text) { geprueft++; if (!bed) { fehler++; console.log('  FEHLER:', text); } }
@@ -505,6 +505,41 @@ abschnitt('Neon-Endlos: ein Kontakt beendet die Fahrt');
   ok(crashs === 1 && F.w.grund === 'crash' && F.w.phase === 'fertig', `Berührung = sofort Ende (genau ein Crash, ${crashs})`);
   ok(b.d - F.sp.d > 0, 'nach dem Crash rollt der Kombi nicht durch das Auto');
   ok(F.w.druck === 0 && F.w.warnung < 0, 'kein Verfolgungsdruck im Endlosmodus');
+}
+
+abschnitt('Suchtfaktor: Kombo, Rekordlinie, Aufgaben, Lackierungen');
+{
+  // Kombo: jedes knappe Manöver +1, verfällt nach komboZeit, Crash setzt zurück
+  const F = erstelleFahrt('endlos', { seed: 1, startFaktor: 1, rekordD: 300 });
+  F.w.spawnUhr = 1e9; F.w.polizeiUhr = 1e9; F.w.naechstesFeld = 1e9;
+  for (let i = 0; i < 10; i++) F.schritt({});
+  for (const off of [15, 40]) { const a = autoVor(F, off, 0, 'kugel', 10); a.x = F.sp.x + (SPIELER.breite + a.breite) / 2 + 0.4; }
+  let komboEvents = [];
+  for (let i = 0; i < 120 * 3; i++) { F.schritt({}); for (const e of F.w.ereignisse) if (e.typ === 'knapp') komboEvents.push(e.kombo); F.w.ereignisse.length = 0; }
+  ok(komboEvents.join(',') === '2,3' && F.w.kombo === 3, `zwei knappe Manöver: Kombo ×2, dann ×3 (${komboEvents})`);
+  ok(F.w.punkte.knapp === PUNKTE.knapp * 2 + PUNKTE.knapp * 3, 'knapp-Punkte werden mit der Kombo multipliziert');
+  let ende = false, rekord = 0;
+  for (let i = 0; i < 120 * (PUNKTE.komboZeit + 2); i++) { F.schritt({}); for (const e of F.w.ereignisse) { if (e.typ === 'komboEnde') ende = true; if (e.typ === 'rekord') rekord++; } F.w.ereignisse.length = 0; }
+  ok(ende && F.w.kombo === 1, `Kombo verfällt nach ${PUNKTE.komboZeit} s ohne knappes Manöver`);
+  ok(rekord === 1 && F.w.rekordGeknackt, 'Rekordlinie: genau ein Rekord-Ereignis beim Überfahren');
+  ok(F.w.statistik.maxKombo === 3, 'höchste Kombo wird gemerkt');
+}
+{
+  // Aufgaben: erfüllte geben einen Stern und werden ersetzt; neue zählen erst ab dem nächsten Lauf
+  const stand = { aktiv: [0, 1, 2], naechste: 3, sterne: 0 };
+  const lauf = { strecke: 3000, knapp: 0, felder: 5, tempo: 200, ueberholt: 50, kombo: 1, serie: 0, punkte: 1000 };
+  const ausnahmen = new Set();
+  const e1 = pruefeAufgaben(stand, lauf, { strecke: 0, knapp: 0, felder: 0 }, ausnahmen);
+  ok(e1.length === 2 && stand.sterne === 2 && stand.aktiv.includes(1), `2 von 3 Aufgaben erfüllt (${e1.map(a => a.text).join(' / ')})`);
+  const e2 = pruefeAufgaben(stand, lauf, { strecke: 0, knapp: 0, felder: 0 }, ausnahmen);
+  ok(e2.length === 0 && stand.sterne === 2, 'neue Aufgaben werden im selben Lauf nicht sofort mitgezählt (keine Sternenkette)');
+  const e3 = pruefeAufgaben(stand, lauf, { strecke: 0, knapp: 0, felder: 0 }, new Set());
+  ok(e3.length >= 1, 'im nächsten Lauf zählen sie');
+  const g = AUFGABEN.nr(6);
+  ok(g.art === 'gesamt' && pruefeAufgaben({ aktiv: [6, 1, 2], naechste: 30, sterne: 0 }, { strecke: 1000 }, { strecke: 9500 }).length >= 1, 'Gesamt-Aufgaben zählen bisherige Läufe mit');
+  let steigt = true; for (let n = AUFGABEN.anzahlFest; n < AUFGABEN.anzahlFest + 40; n += 4) if (AUFGABEN.nr(n + 4).ziel <= AUFGABEN.nr(n).ziel) steigt = false;
+  ok(steigt && AUFGABEN.nr(500).text.length > 5, 'nach der festen Liste geht es endlos mit wachsenden Zielen weiter');
+  ok(LACKE[0].sterne === 0 && LACKE.every((l, i) => i === 0 || l.sterne > LACKE[i - 1].sterne) && new Set(LACKE.map(l => l.id)).size === LACKE.length, `${LACKE.length} Lackierungen mit steigender Sternzahl`);
 }
 
 abschnitt('Spielgefühl: Tempo, Vorwarnzeit, Verkehrsrhythmus (Abnahme)');

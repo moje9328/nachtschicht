@@ -62,6 +62,26 @@
   #tempoFeld { flex: 1 1 0; padding: 1px 8px; }
   #tempoFeld b { font-size: 11px; }
   body:not([data-modus="endlos"]) #tempoFeld, body[data-modus="endlos"] #zustandBalken { display: none; }
+  #komboAnzeige { flex: 0.9 1 0; --b: linear-gradient(90deg, #FF4FD8, #FFD35A); border-color: var(--magenta); }
+  #komboAnzeige[hidden] { display: none; }
+  #komboAnzeige span { font-size: 8px; }
+  .aufgaben { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+  .aufgaben li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 7px 10px; background: var(--surface-2); border-radius: 10px; font-size: 14px; line-height: 1.3; }
+  .aufgaben li .stern { color: var(--muted); font-size: 16px; }
+  .aufgaben li.fertig { box-shadow: 0 0 0 2px var(--gelb); }
+  .aufgaben li.fertig .stern { color: var(--gelb); }
+  .aufgaben li .stand { color: var(--muted); font: 9px var(--retro); white-space: nowrap; }
+  .sternzeile { display: flex; justify-content: space-between; align-items: center; margin: 14px 0 0; color: var(--gelb); font: 10px/1.5 var(--retro); }
+  .lacke { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 14px; }
+  .lack { display: grid; justify-items: center; gap: 4px; padding: 10px 6px; color: var(--text); background: var(--surface-2); border: 2px solid var(--line); border-radius: 12px; cursor: pointer; font: 600 14px/1.3 var(--body); touch-action: manipulation; }
+  .lack canvas { width: 72px; height: 96px; }
+  .lack small { color: var(--muted); font-weight: 400; }
+  .lack[aria-pressed="true"] { border-color: var(--gelb); box-shadow: 0 0 0 2px var(--gelb); }
+  .lack:disabled { cursor: not-allowed; opacity: 0.55; }
+  .grosszahl { margin: 6px 0 0; text-align: center; color: var(--gelb); font: 26px/1.3 var(--retro); text-shadow: 3px 3px 0 var(--koralle); }
+  .details { margin-top: 12px; }
+  .details summary { cursor: pointer; color: var(--muted); font-weight: 600; padding: 6px 0; }
+  #ergebnisRekord { margin: 8px 0 0; text-align: center; color: var(--tuerkis); font: 10px/1.6 var(--retro); }
   #boostWirkung { flex: 0.75 1 0; --b: linear-gradient(90deg, #24D6CD, #FFD35A); border-color: var(--gelb); }
   #boostWirkung[hidden] { display: none; }
   body[data-zustand="coup"] .nurFahrt, body[data-zustand="menue"] #hud { display: none; }
@@ -181,6 +201,7 @@
         <div class="anzeige" id="tempoFeld"><small>TEMPO</small><b id="hudTempo">0 km/h</b></div>
         <div class="balken" id="zustandBalken" role="meter" aria-label="Fahrzeugzustand" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i><span>ZUSTAND</span></div>
         <div class="balken ausgeblendet" id="druckBalken" role="meter" aria-label="Verfolgungsdruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><span>DRUCK</span></div>
+        <div class="balken" id="komboAnzeige" role="timer" aria-label="Kombo" hidden><i></i><span id="komboText">KOMBO ×2</span></div>
         <div class="balken" id="boostWirkung" role="timer" aria-label="Boost wirkt noch" hidden><i></i><span>BOOST!</span></div>
       </div>
     </div>
@@ -210,9 +231,12 @@
       <canvas id="startTitel" width="640" height="320" aria-hidden="true"></canvas>
       <p class="unterzeile">Endlos-Racer: Fahr, so weit du kommst – ein Kontakt, und es ist vorbei!</p>
       <p class="hinweistext" id="startRekord" style="text-align:center" hidden></p>
+      <p class="sternzeile"><span id="startSterne">★ 0</span><span id="startStufe">AUFGABEN</span></p>
+      <ul class="aufgaben" id="startAufgaben"></ul>
       <p class="duell" id="startDuell" hidden></p>
       <div class="knoepfe">
         <button class="btn main" id="spielenKnopf" type="button">Spielen</button>
+        <button class="btn" id="garageKnopf" type="button">Garage</button>
         <button class="btn" id="auftragWahlKnopf" type="button" hidden>Missionen</button>
         <div class="knoepfe zwei" style="margin-top:0">
           <button class="btn klein" id="soundKnopf" type="button">Sound</button>
@@ -233,6 +257,15 @@
       </div>
       <div class="auftraege" id="auftragListe"></div>
       <label class="schalter" id="coupZeile"><input type="checkbox" id="coupWahl"> Mit Coup-Einstieg: kurzes Timing-Minispiel vor der Fahrt (Extra-Punkte)</label>
+    </section>
+
+    <section id="fGarage" hidden>
+      <div class="zeile zurueck">
+        <h2 id="fGarageTitel">Garage</h2>
+        <button class="btn klein js-zurueck" type="button">Zurück</button>
+      </div>
+      <p class="hinweistext" id="garageText">Erfülle Aufgaben, sammle Sterne und schalte neue Lackierungen frei.</p>
+      <div class="lacke" id="lackListe"></div>
     </section>
 
     <section id="fSound" hidden>
@@ -300,10 +333,11 @@
 
     <section id="fErgebnis" hidden>
       <h2 id="fErgebnisTitel">Auftrag geschafft!</h2>
-      <canvas id="ergebnisBild" width="640" height="320" aria-hidden="true"></canvas>
+      <canvas id="ergebnisBild" width="640" height="320" aria-hidden="true" hidden></canvas>
       <p class="ergebnisgrund" id="ergebnisGrund"></p>
-      <dl class="zahlen" id="ergebnisZahlen"></dl>
+      <p id="ergebnisPunkte" class="grosszahl">0</p>
       <p class="hervor" id="ergebnisBest" hidden></p>
+      <p id="ergebnisRekord"></p>
       <div class="knoepfe">
         <button class="btn main" id="nochmalKnopf" type="button">Noch einmal</button>
         <div class="knoepfe zwei" style="margin-top:0">
@@ -311,6 +345,8 @@
           <button class="btn klein" id="ergebnisFreunde" type="button">Freunde herausfordern</button>
         </div>
       </div>
+      <ul class="aufgaben" id="ergebnisAufgaben"></ul>
+      <details class="details"><summary>Punkte im Detail</summary><dl class="zahlen" id="ergebnisZahlen"></dl></details>
     </section>
   </div>
 </div>

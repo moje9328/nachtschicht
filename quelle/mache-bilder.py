@@ -25,8 +25,8 @@ async def main():
         await pg.evaluate(f"(() => {{ const F = {N}.fahrt(); F.sp.d = 4400 * 2 + 300; }})()")
         await pg.wait_for_function(f"{N}.fahrt().w.autos.filter(a => a.d > {N}.fahrt().sp.d && a.d < {N}.fahrt().sp.d + 45).length >= 4 && {N}.fahrt().w.felder.some(f => f.status === 'offen' && f.d > {N}.fahrt().sp.d + 8 && f.d < {N}.fahrt().sp.d + 40)", polling='raf', timeout=120000)
         await foto('nachtschicht-neon')
-        # 2: Verfolgung: Streife im Bild
-        await pg.wait_for_function(f"{N}.fahrt().w.polizei.some(p => p.d > {N}.fahrt().sp.d - 11) && {N}.fahrt().w.autos.filter(a => a.d > {N}.fahrt().sp.d && a.d < {N}.fahrt().sp.d + 45).length >= 2", polling="raf", timeout=240000)
+        # 2: dichter Verkehr (Streife, falls gerade im Bild)
+        await pg.wait_for_function(f"{N}.fahrt().w.autos.filter(a => a.d > {N}.fahrt().sp.d && a.d < {N}.fahrt().sp.d + 50).length >= 7", polling='raf', timeout=240000)
         await foto('nachtschicht-streife')
         # 3: Startbild
         await pg.evaluate(f'{N}.setzeBot(null); {N}.zeigeStart()')

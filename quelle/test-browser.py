@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Browser-Test mit Playwright. Aufruf: python3 quelle/test-browser.py [webkit]
 # Startet einen kleinen Webserver und prüft das fertige index.html im echten Game Loop:
-# Coup mit echten Tipps, Touch-/Maus-/Tastatursteuerung, Boost und Kollisionen, Pause,
+# Coup mit echten Tipps, Touch-/Maus-/Tastatursteuerung, Boostfelder und Kollisionen, Pause,
 # Tabwechsel, Neustart, alle drei Aufträge bis zum Ziel, Speicher, Layouts.
 import asyncio, http.server, json, pathlib, socketserver, sys, threading, time
 from playwright.async_api import async_playwright
@@ -134,15 +134,16 @@ async def main():
         print('\n# Touch-Steuerung')
         box = await pg.locator('#lenkflaeche').bounding_box()
         ok(box and box['height'] >= 120 and box['y'] + box['height'] <= 844 + 1, f'Steuerfläche unten, groß genug ({box and round(box["height"])} px)')
-        bb = await pg.locator('#boostKnopf').bounding_box()
-        ok(bb and bb['width'] >= 80, 'Boost-Knopf groß genug')
+        ok(await pg.locator('#boostKnopf').count() == 0 and await pg.locator('#boostBalken').count() == 0, 'kein Boostknopf und kein Boost-Ladebalken mehr')
+        ok(not await im_bild(pg, '#boostWirkung'), 'Boost-Wirkzeit nur während eines Boosts sichtbar')
+        ok(box['height'] <= 145, f'Steuerfläche kompakter, Fahransicht größer ({round(box["height"])} px)')
         if MOTOR == 'chromium':
             cdp = await ctx.new_cdp_session(pg)
             async def touch(typ, x=0, y=0, ident=1, punkte=None):
                 pts = punkte if punkte is not None else ([] if typ in ('touchEnd', 'touchCancel') else [{'x': x, 'y': y, 'id': ident}])
                 await cdp.send('Input.dispatchTouchEvent', {'type': typ, 'touchPoints': pts})
             # Weg für die Messung frei machen
-            await pg.evaluate(f'{F}.w.autos.length = 0; {F}.w.spawnUhr = 1e9; {F}.w.polizeiUhr = 1e9')
+            await pg.evaluate(f'{F}.w.autos.length = 0; {F}.w.felder.length = 0; {F}.w.spawnUhr = 1e9; {F}.w.polizeiUhr = 1e9; {F}.w.polizei.length = 0; {F}.w.anmeldungen.length = 0')
             x0 = await wert(pg, f'{F}.sp.x')
             sx, sy = box['x'] + box['width'] * 0.3, box['y'] + box['height'] * 0.35
             await touch('touchStart', sx, sy)
@@ -177,16 +178,26 @@ async def main():
             await pg.wait_for_timeout(400)
             ok(await wert(pg, f'{F}.sp.x') < xr - 0.5, 'am Straßenrand keine tote Zone: Zurückziehen wirkt sofort')
             await touch('touchEnd')
-        # Boost-Knopf halten (echter Pointer)
-        bk = await pg.locator('#boostKnopf').bounding_box()
-        await pg.mouse.move(bk['x'] + bk['width'] / 2, bk['y'] + bk['height'] / 2)
-        await pg.mouse.down()
-        await pg.wait_for_timeout(400)
-        ok(await wert(pg, f'{F}.sp.boostAn'), 'Boost-Knopf halten = Boost')
-        ok(await wert(pg, f'{N}.eingabeSt.zug') is None, 'Boost-Knopf lenkt nicht')
-        await pg.mouse.up()
-        await pg.wait_for_timeout(150)
-        ok(not await wert(pg, f'{F}.sp.boostAn'), 'Loslassen beendet den Boost')
+        # Boostfeld im echten Loop: genau einmal, Anzeige nur während der Wirkung, Pause hält die Wirkzeit an
+        await pg.evaluate(f'{F}.w.autos.length = 0; {F}.w.felder.length = 0; {F}.w.spawnUhr = 1e9; {F}.w.polizeiUhr = 1e9; {F}.w.polizei.length = 0; {F}.w.anmeldungen.length = 0')
+        b0 = await wert(pg, f'{F}.w.statistik.boostFelder')
+        await pg.evaluate(f"{F}.w.ereignisse.length = 0; window.__felder = 0; {F}.w.felder.push({{ id: 4242, d: {F}.sp.d + 30, spur: 0, x: {F}.sp.x, laenge: 7, breite: 2.6, status: 'offen' }})")
+        await pg.evaluate(f'''(() => {{ const f = () => {{ const F = {F}; if (!F) return; for (const e of F.w.ereignisse) if (e.typ === 'boostFeld') window.__felder++; requestAnimationFrame(f); }}; f(); }})()''')
+        ok(await warte(pg, f'{F}.sp.boostAn', 4000), 'Überfahren des Feldes löst Boost aus')
+        await pg.wait_for_timeout(300)
+        ok(await im_bild(pg, '#boostWirkung'), 'kompakte Wirkzeit-Anzeige während des Boosts')
+        await pg.screenshot(path=str(BILDER / f'{MOTOR}-handy-boostfeld.png'))
+        await pg.tap('#pauseKnopf')
+        r0 = await wert(pg, f'{F}.sp.boostRest'); await pg.wait_for_timeout(700)
+        ok(r0 > 0 and await wert(pg, f'{F}.sp.boostRest') == r0, 'Pause stoppt die verbleibende Boostdauer')
+        await pg.tap('#weiterKnopf'); await warte_fahrt(pg)
+        ok(await warte(pg, f'!{F}.sp.boostAn', 6000), 'Boost endet von selbst')
+        ok(not await im_bild(pg, '#boostWirkung'), 'Anzeige verschwindet nach dem Boost')
+        bf = await wert(pg, f'{F}.w.statistik.boostFelder') - b0
+        ok(bf == 1, f'Feld genau einmal ausgelöst ({bf}, Ereignisse {await wert(pg, "window.__felder")})')
+        await warte(pg, f'Math.abs({F}.sp.v - {F}.w.vGrund) < 0.2', 3000)
+        ok(abs(await wert(pg, f'{F}.sp.v') - await wert(pg, f'{F}.w.vGrund')) < 0.2, f'zurück auf Grundtempo ({await wert(pg, f"{F}.sp.v"):.2f})')
+        ok((await wert(pg, f'{N}.ton()'))['musik'], 'Hintergrundmusik läuft in der Fahrt')
 
         # ---------------------------------------------------------------
         print('\n# Pause, Tabwechsel, Neustart')
@@ -211,18 +222,18 @@ async def main():
         await pg.wait_for_timeout(400)
         ok(await wert(pg, f"{N}.zustand()") == 'pause', 'nach Rückkehr bleibt es pausiert, bis man bewusst fortsetzt')
         # Neustart aus der Pause: alles frisch
-        await pg.evaluate(f'{N}.eingabeSt.boost.add("test")')
+        await pg.evaluate(f'{N}.eingabeSt.links.add("test")')
         await pg.tap('#neustartKnopf')
         ok(await wert(pg, f"{N}.zustand()") == 'coup', 'Neustart beginnt den Auftrag neu (Coup)')
-        frisch = await wert(pg, f'({{ fahrt: {N}.lauf().fahrt, boost: {N}.eingabeSt.boost.size, zug: {N}.eingabeSt.zug, partikel: {N}.partikel(), treffer: {N}.coup().c.treffer }})')
+        frisch = await wert(pg, f'({{ fahrt: {N}.lauf().fahrt, boost: {N}.eingabeSt.links.size, zug: {N}.eingabeSt.zug, partikel: {N}.partikel(), treffer: {N}.coup().c.treffer }})')
         ok(frisch['fahrt'] is None and frisch['boost'] == 0 and frisch['zug'] is None and frisch['partikel'] == 0 and frisch['treffer'] == 0, f'Neustart entfernt alte Objekte und Eingaben {frisch}')
         await ctx.close()
 
         # ---------------------------------------------------------------
-        print('\n# Tastatur, Maus, Boost-Kollision bei Höchsttempo (Desktop)')
+        print('\n# Tastatur, Maus, Kollision bei Boosttempo (Desktop)')
         ctx, pg = await neue_seite(b, 1440, 900, query='?seed=12')
         lay = await wert(pg, f'{N}.lay()')
-        ok(abs(lay['sicht']['w'] / lay['sicht']['h'] - 0.62) < 0.01 and lay['sicht']['w'] < 700, f'Desktop: zentrierte Sicht mit festem Seitenverhältnis ({lay["sicht"]["w"]:.0f}×{lay["sicht"]["h"]:.0f})')
+        ok(abs(lay['sicht']['w'] / lay['sicht']['h'] - 0.6) < 0.01 and lay['sicht']['w'] < 700, f'Desktop: zentrierte Sicht mit festem Seitenverhältnis ({lay["sicht"]["w"]:.0f}×{lay["sicht"]["h"]:.0f})')
         await pg.click('#trainingKnopf')
         ok(await wert(pg, f'{N}.lauf().id') == 'training' and await wert(pg, f"{N}.zustand()") == 'fahrt', 'Training startet direkt ohne Coup')
         await warte_fahrt(pg)
@@ -247,15 +258,20 @@ async def main():
         await pg.mouse.move(mx + 120, my, steps=6); await pg.wait_for_timeout(500)
         ok(await wert(pg, f'{F}.sp.x') > xm0 + 1.5, 'Maus ziehen lenkt')
         await pg.mouse.up()
-        # Leertaste = Boost; Höchsttempo; Kollision während Boost
-        await pg.keyboard.down('Space'); await pg.wait_for_timeout(1500)
-        v = await wert(pg, f'{F}.sp.v'); vg = await wert(pg, f'{F}.w.vGrund')
-        ok(v > vg * 1.2 and await wert(pg, f'{F}.sp.boost') < 70, f'Leertaste boostet ({v:.1f} m/s)')
+        # Leertaste hat in der Fahrt keine Boostfunktion mehr
+        vg = await wert(pg, f'{F}.w.vGrund')
+        await pg.keyboard.down('Space'); await pg.wait_for_timeout(800); await pg.keyboard.up('Space')
+        ok(abs(await wert(pg, f'{F}.sp.v') - vg) < 0.1 and not await wert(pg, f'{F}.sp.boostAn'), 'Leertaste löst keinen Boost aus')
+        for taste in ['ShiftLeft', 'ArrowUp', 'KeyW']:
+            await pg.keyboard.down(taste); await pg.wait_for_timeout(150); await pg.keyboard.up(taste)
+        ok(not await wert(pg, f'{F}.sp.boostAn'), 'keine alte Boost-Taste mehr belegt')
+        # Boostfeld nehmen, dann bei Boosttempo auffahren: genau ein Schaden, kein Durchfahren
+        await pg.evaluate(f"{F}.w.felder.push({{ id: 4343, d: {F}.sp.d + 25, spur: 0, x: {F}.sp.x, laenge: 7, breite: 2.6, status: 'offen' }})")
+        ok(await warte(pg, f'{F}.sp.v > {F}.w.vGrund * 1.28', 5000), 'Boostfeld bringt +30 % Tempo')
         await pg.evaluate(f'''(() => {{ const f = {F}; const sp = f.sp; f.w.autos.push({{ id: 9999, typ: 'laster', spur: f.spurVon(sp.x), x: sp.x, d: sp.d + 30, v: 10, vSoll: 10, stoss: 0, laenge: 11.5, breite: 2.5, wechsel: null, wechselSperre: 99, vorbei: false, getroffen: false, knappMin: 99, knappFertig: false, kontaktBis: -1, wackel: 0, farbe: 0, geboren: 0 }}); }})()''')
         await warte(pg, f'{F}.sp.zustand < 100', 4000)
         await pg.wait_for_timeout(600)
-        await pg.keyboard.up('Space')
-        ok(await wert(pg, f'{F}.sp.zustand') == 80, f'Auffahren bei Boost-Tempo: genau ein Schaden ({await wert(pg, f"{F}.sp.zustand")})')
+        ok(await wert(pg, f'{F}.sp.zustand') == 80, f'Auffahren bei Boosttempo: genau ein Schaden ({await wert(pg, f"{F}.sp.zustand")})')
         ok(await wert(pg, f'{F}.w.autos.find(a => a.id === 9999).d - {F}.sp.d') > 0, 'kein Durchfahren des Lasters bei Höchsttempo')
         await pg.screenshot(path=str(BILDER / f'{MOTOR}-desktop-unfall.png'))
         # Leertaste auf fokussiertem Menüknopf: setzt fort, boostet aber nicht
@@ -263,7 +279,7 @@ async def main():
         ok(await wert(pg, f"{N}.zustand()") == 'pause', 'P pausiert')
         await pg.focus('#weiterKnopf'); await pg.keyboard.press('Space')
         await pg.wait_for_timeout(100)
-        ok(await wert(pg, f"{N}.zustand()") == 'fahrt' and await wert(pg, f'{N}.eingabeSt.boost.size') == 0, 'Leertaste auf „Weiter“ startet keinen Boost')
+        ok(await wert(pg, f"{N}.zustand()") == 'fahrt' and await wert(pg, f'{N}.eingabeSt.zug') is None, 'Leertaste auf „Weiter“ setzt fort, ohne zu lenken')
         await pg.keyboard.press('KeyM')
         ok(await wert(pg, f'{N}.speicher.ton') is False, 'M schaltet den Ton aus')
         await pg.keyboard.press('KeyM')
@@ -289,6 +305,7 @@ async def main():
             titel = await pg.inner_text('#fErgebnisTitel') if fertig else '–'
             ok(fertig and titel == 'Auftrag geschafft!', f'{auftrag}: Auftrag geschafft ({titel})')
             if auftrag == 'nachthafen': await pg.screenshot(path=str(BILDER / f'{MOTOR}-ergebnis.png'))
+            ok(not (await wert(pg, f'{N}.ton()'))['musik'], f'{auftrag}: Musik endet mit dem Ergebnis')
             await pg.evaluate(f'{N}.setzeBot(null)')
         gespeichert = json.loads(await wert(pg, "localStorage.getItem('pixelhafen.nachtschicht')"))
         ok(gespeichert['v'] == 1 and all(gespeichert['beste'][a]['geschafft'] == 1 and gespeichert['beste'][a]['punkte'] > 0 for a in ['containerkai', 'neonviertel', 'nachthafen']), 'Bestleistungen getrennt und versioniert gespeichert')
@@ -329,10 +346,10 @@ async def main():
             await warte_fahrt(pg); await pg.wait_for_timeout(1200)
             lay = await wert(pg, f'{N}.lay()')
             s = lay['sicht']
-            ok(abs(s['w'] / s['h'] - 0.62) < 0.01, f'{name}: Sicht im festen Seitenverhältnis')
+            ok(abs(s['w'] / s['h'] - 0.6) < 0.01, f'{name}: Sicht im festen Seitenverhältnis')
             ok(s['x'] >= -0.5 and s['x'] + s['w'] <= w + 0.5, f'{name}: Sicht passt in die Breite')
             ok(await wert(pg, 'document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight'), f'{name}: kein Scrollen')
-            ok(await im_bild(pg, '#hud') and await im_bild(pg, '#boostKnopf'), f'{name}: HUD und Boost im Bild')
+            ok(await im_bild(pg, '#hud') and await pg.locator('#boostKnopf').count() == 0, f'{name}: HUD im Bild, kein Boostknopf')
             hud = await pg.locator('#hud').bounding_box()
             ok(hud['y'] + hud['height'] <= s['y'] + s['h'] * ANSICHT_HIMMEL + 4, f'{name}: HUD verdeckt die Straße nicht')
             if touch and h > w:

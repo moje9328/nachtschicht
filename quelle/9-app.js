@@ -50,19 +50,17 @@
     const hudH = (hud.offsetHeight || 80) + Math.max(6, sr.t) + 6;
     const quer = W > Hh * 0.95;
     lay.modus = touchGesehen && !quer ? 'unten' : 'seite';
-    const flaeche = $('lenkflaeche'), boost = $('boostKnopf'), aktion = $('aktionKnopf'), links = $('linksKnopf'), rechts = $('rechtsKnopf');
+    const flaeche = $('lenkflaeche'), aktion = $('aktionKnopf'), links = $('linksKnopf'), rechts = $('rechtsKnopf');
     const knoepfe = Speicher.knoepfe;
     const setze = (el, x, y, w, h) => Object.assign(el.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
     let area;
     if (lay.modus === 'unten') {
-      const steuerH = klemme(Hh * 0.2, 128, 178);
+      const steuerH = klemme(Hh * 0.15, 104, 140);   // ohne Boostknopf: mehr Platz für die Fahransicht
       const oben = Hh - sr.b - steuerH;
       area = { x: sr.l, y: hudH, w: W - sr.l - sr.r, h: oben - hudH - 4 };
       setze(flaeche, 0, oben, W, steuerH + sr.b);
       flaeche.className = '';
-      const bs = Math.min(104, steuerH - 22);
-      setze(boost, W - sr.r - bs - 14, oben + (steuerH - bs) / 2, bs, bs);
-      $('lenkHinweis').style.right = (sr.r + bs + 24) + 'px';
+      $('lenkHinweis').style.right = '0px';
       const ks = Math.min(76, steuerH - 40);
       setze(links, sr.l + 12, steuerH - ks - 12, ks, ks);
       setze(rechts, sr.l + 24 + ks, steuerH - ks - 12, ks, ks);
@@ -88,9 +86,6 @@
         // Maus/Desktop: auf der Straße selbst ziehen
         setze(flaeche, sx, sy, sw, sh); flaeche.className = 'unsichtbar';
       }
-      const bs = klemme(rechtsB - 30, 84, 120);
-      if (rechtsB >= 100) setze(boost, sx + sw + (rechtsB - bs) / 2, Hh - sr.b - bs - 28, bs, bs);
-      else setze(boost, sx + sw - bs - 12, sy + sh - bs - 12, bs, bs);
       const aw = Math.min(260, Math.max(rechtsB - 30, 180));
       if (rechtsB >= 200) setze(aktion, sx + sw + (rechtsB - aw) / 2, Hh - sr.b - 110, aw, 80);
       else setze(aktion, sx + sw / 2 - 120, sy + sh - 100, 240, 76);
@@ -114,14 +109,13 @@
     const coup = zustand === 'coup' || (zustand === 'pause' && vorPause === 'coup');
     const spiel = fahrt || coup;
     $('lenkflaeche').hidden = !spiel;
-    $('boostKnopf').hidden = !fahrt;
     $('aktionKnopf').hidden = !coup;
     $('ueberspringenKnopf').hidden = !(coup && lauf && lauf.darfUeberspringen);
     $('linksKnopf').hidden = $('rechtsKnopf').hidden = !(fahrt && Speicher.knoepfe);
     $('lenkHinweis').style.visibility = fahrt ? 'visible' : 'hidden';
     const tipp = $('tastenTipp');
     tipp.innerHTML = coup ? '<b>LEERTASTE</b><br>Impuls / Fangen<br><br><b>P</b> Pause<br><b>M</b> Ton'
-      : '<b>PFEILTASTEN</b><br>oder <b>A</b> / <b>D</b><br>lenken<br><br><b>LEERTASTE</b><br>Boost<br><br><b>P</b> Pause<br><b>M</b> Ton<br><br>Maus: auf der<br>Straße ziehen';
+      : '<b>PFEILTASTEN</b><br>oder <b>A</b> / <b>D</b><br>lenken<br><br>Pfeilfelder auf<br>der Straße geben<br><b>BOOST</b><br><br><b>P</b> Pause<br><b>M</b> Ton<br><br>Maus: auf der<br>Straße ziehen';
   }
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', () => setTimeout(layout, 120));
@@ -129,7 +123,7 @@
   // ---------------------------------------------------------------
   // Eingabe verbinden
   Eingabe.verbindeFlaeche($('lenkflaeche'));
-  Eingabe.verbindeKnoepfe($('linksKnopf'), $('rechtsKnopf'), $('boostKnopf'));
+  Eingabe.verbindeKnoepfe($('linksKnopf'), $('rechtsKnopf'));
   Eingabe.st.aktiv = () => (zustand === 'fahrt' && lauf && lauf.fahrt ? 'fahrt' : zustand === 'coup' ? 'coup' : null);
   Eingabe.st.spieler = () => {
     const F = lauf && lauf.fahrt;
@@ -251,7 +245,7 @@
   // ---------------------------------------------------------------
   // Auftrag starten / Coup / Fahrt
   function beendeLauf() {
-    Ton.fahrt(null);
+    Ton.fahrt(null); Ton.musik(false);
     lauf = null;
     vorPause = null;
     Grafik.partikelLeeren(); Grafik.leereBlasen();
@@ -289,7 +283,7 @@
     Grafik.partikelLeeren(); Grafik.leereBlasen();
     setzeZustand('fahrt');
     melde('BEREIT …', 1.0, 'gross');
-    zeigeHinweis('lenken', touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: ← → oder A / D. Boost: Leertaste halten.', 5);
+    zeigeHinweis('lenken', touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: Pfeiltasten oder A / D.', 5);
   }
   function coupAktion() {
     if (zustand !== 'coup' || !lauf || !lauf.coup) return;
@@ -356,7 +350,12 @@
     const F = lauf.fahrt, w = F.w, sp = F.sp;
     for (const e of w.ereignisse) {
       switch (e.typ) {
-        case 'boostStart': Ton.boost(); zeigeHinweis('boost2', 'Boost: schneller und mehr Punkte, aber weniger Zeit zum Reagieren.', 3.5); break;
+        case 'boostFeld':
+          Ton.boostFeld(e.auffrischen);
+          Grafik.blase('BOOST!', sp.d + 11, sp.x, '#FFD35A', 0.8, 0.9);
+          for (let i = 0; i < (bewegungRuhig.matches ? 4 : 10); i++) Grafik.weltPartikel({ d: sp.d - 2.4, x: sp.x + (Math.random() - 0.5) * 1.6, h: 0.4, vh: 0.8, vd: sp.v * 0.75, vx: (Math.random() - 0.5) * 1.5, dauer: 0.5, groesse: 0.22, farbe: i % 2 ? 'rgba(255, 211, 90, 0.8)' : 'rgba(36, 214, 205, 0.8)' });
+          zeigeHinweis('boostFeld', 'Boost! Schneller und mehr Punkte – aber weniger Zeit zum Reagieren.', 3);
+          break;
         case 'unfall': {
           Ton.unfall(e.art !== 'seite');
           Eingabe.neuBasis();
@@ -373,12 +372,11 @@
         case 'ueberholt': Ton.ueberholt(e.serie); if (e.serie >= 5 && e.serie % 5 === 0) melde(`SERIE ×${e.serie}!`, 1.0); break;
         case 'knapp': Ton.knapp(); Grafik.blase(`KNAPP! +${e.punkte}`, sp.d + 3, sp.x, '#24D6CD', 0.9, 0.85); zeigeHinweis('knapp', 'Knapp vorbei gibt einen kleinen Bonus – pro Auto nur einmal.', 3); break;
         case 'marke': Ton.marke(); melde(`STRECKENMARKE ${e.nr}/${e.von - 1}\n${e.abschnitt.toUpperCase()}`, 1.8); Grafik.blase(`+${e.punkte}`, sp.d + 5, sp.x, '#24D6CD', 1.0, 1); zeigeHinweis('marke', 'Streckenmarken geben Punkte und senken den Verfolgungsdruck.', 3.5); break;
-        case 'polizeiWarnung': Ton.polizeiWarnung(); zeigeHinweis('polizei', 'Eine Streife kommt von hinten (blauer Pfeil unten). Abstand halten, Boost nutzen, sauber fahren!', 4.5, true); break;
+        case 'polizeiWarnung': Ton.polizeiWarnung(); zeigeHinweis('polizei', 'Eine Streife kommt von hinten (blauer Pfeil unten). Abstand halten, Boostfelder nutzen, sauber fahren!', 4.5, true); break;
         case 'polizeiDa': break;
         case 'abgehaengt': Ton.abgehaengt(); melde(`ABGEHÄNGT! +${e.punkte}`, 1.4); break;
-        case 'warnung': Ton.warnung(); melde('DRUCK VOLL!\nSCHÜTTLE DIE STREIFE AB!', 2.2, 'warn'); zeigeHinweis('warnung', 'Boost und Abstand senken den Druck. Bleibt er voll, endet der Auftrag.', 4, true); break;
+        case 'warnung': Ton.warnung(); melde('DRUCK VOLL!\nSCHÜTTLE DIE STREIFE AB!', 2.2, 'warn'); zeigeHinweis('warnung', 'Boostfelder und Abstand senken den Druck. Bleibt er voll, endet der Auftrag.', 4, true); break;
         case 'entkommen': Ton.entkommen(); melde('PUH – ENTKOMMEN!', 1.4); break;
-        case 'boostLeer': zeigeHinweis('boostLeer', 'Boost leer – er lädt sich langsam wieder auf, wenn du ihn loslässt.', 3); break;
         case 'ende':
           if (e.grund === 'ziel') {
             Ton.sieg(); melde('ZIEL ERREICHT!\nHALLE 7 – TOR ZU!', 3.2, 'gross');
@@ -424,10 +422,10 @@
     setzeText('hudBeutel', String(ce.beutel));
     setzeBalken('zustandBalken', F.sp.zustand);
     setzeBalken('druckBalken', F.w.druck, F.w.warnung >= 0 ? 'w' : '');
-    setzeBalken('boostBalken', F.sp.boost);
-    const fuell = $('boostKnopf').querySelector('.fuell');
-    const b = Math.round(F.sp.boost);
-    if (hudAlt.boostKnopf !== b) { hudAlt.boostKnopf = b; fuell.style.transform = `scaleY(${b / 100})`; }
+    // Wirkzeit nur während des Effekts (kein Vorrat, kein Bedienelement)
+    const an = F.sp.boostAn;
+    if (hudAlt.boostSicht !== an) { hudAlt.boostSicht = an; $('boostWirkung').hidden = !an; }
+    if (an) setzeBalken('boostWirkung', F.sp.boostRest > 0 ? F.sp.boostRest / BOOST.dauer * 100 : 0);
   }
 
   // ---------------------------------------------------------------
@@ -442,6 +440,7 @@
       zeilen.push([`Beutetaschen (${ce.beutel})`, ce.beutelPunkte]);
     }
     zeilen.push([`Strecke (${(Math.min(F.sp.d, F.strecke.laenge) / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} km)`, p.strecke]);
+    zeilen.push([`Boostfelder (${w.statistik.boostFelder})`, p.boostFelder]);
     zeilen.push([`Sauber überholt (${w.statistik.ueberholt}, beste Serie ${w.statistik.besteSerie})`, p.ueberholen]);
     zeilen.push([`Knapp vorbei (${w.statistik.knapp})`, p.knapp]);
     zeilen.push([`Streckenmarken (${w.markeNr})`, p.marken]);
@@ -476,7 +475,7 @@
         : best.geschafft ? `BESTLEISTUNG: ${zahl(best.punkte)} (zählt nur bei geschafftem Auftrag)` : 'Bestleistung zählt, sobald du den Auftrag schaffst.';
     }
     $('ergebnisFreunde').hidden = lauf.id === 'training';
-    Ton.fahrt(null);
+    Ton.fahrt(null); Ton.musik(false);
     setzeZustand('ergebnis');
     zeichneErgebnisBild(geschafft, ce.beutel);
     zeigeFenster('fErgebnis');
@@ -535,6 +534,7 @@
       }
       const e = botEingabe ? botEingabe() : Eingabe.lesen();
       lauf.fahrt.schritt(e);
+      if (lauf.fahrt.w.felder.some(f => f.status === 'offen' && f.d - lauf.fahrt.sp.d < ANSICHT.vorne)) zeigeHinweis('felder', 'Fahre über die leuchtenden Pfeilfelder für einen Temposchub!', 4, true);
       lauf.gesamtZeit += dt;
       verarbeiteFahrtEreignisse();
     }
@@ -564,6 +564,11 @@
       if (F.w.anmeldungen.length) naehe = Math.max(naehe, 0.35);
       if (F.w.phase !== 'fahrt') naehe *= 0.4;
       Ton.fahrt(F.sp.v, F.sp.boostAn, naehe);
+    }
+    // Hintergrundmusik läuft im Coup und in der Fahrt durch; mehr Spannung = leise Zusatzschicht
+    if (lauf && (zustand === 'coup' || zustand === 'fahrt')) {
+      const F = lauf.fahrt;
+      Ton.musik(true, F && F.w.warnung >= 0 ? 1 : F && F.w.druck > 60 ? 0.5 : 0);
     }
     aktualisiereHud();
     zeichne();

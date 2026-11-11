@@ -12,11 +12,11 @@ const SPUR = 3.6;                   // Breite einer Fahrspur
 // Sichtbereich: immer gleich viele Meter voraus, egal wie groß der Bildschirm ist
 const ANSICHT = {
   vorne: 62,        // Meter vor dem Spieler, die man sieht
-  hinten: 9,        // Meter hinter dem Spieler
+  hinten: 14,       // Meter hinter dem Spieler (genug, um die verfolgende Streife zu sehen)
   breite: 19.5,     // Meter quer (unten im Bild); breite Bildschirme sehen nicht mehr Straße
   schraeg: 0.36,    // leichte Schrägsicht: oben ist alles um so viel kleiner
   himmel: 0.075,    // Anteil oben für Horizont und Skyline
-  seitenverhaeltnis: 0.62, // Breite/Höhe des Sichtfensters
+  seitenverhaeltnis: 0.6,  // Breite/Höhe des Sichtfensters
   einblenden: 8,    // die letzten Meter oben werden sanft eingeblendet
 };
 
@@ -28,13 +28,22 @@ const SPIELER = {
   seitBremse: 150,                     // m/s² beim Loslassen/Gegenlenken: kein Nachrutschen
   zielFaktor: 11,                      // wie stark das Auto dem Fingerziel folgt
   beschl: 7.5,                         // m/s² bis zur Grundgeschwindigkeit
-  boostBeschl: 11,
+  boostBeschl: 9,                      // weicher Schub beim Boostfeld
   bremsen: 6,                          // m/s² zurück auf Grundtempo nach dem Boost
   neigungMax: 0.075,                   // rad, kleine Neigung beim Lenken
 };
 
+// Boostfelder: leuchtende Pfeilfelder auf einzelnen Spuren, lösen beim Überfahren
+// automatisch einen zeitlich begrenzten Schub aus (kein Vorrat, kein Knopf).
 const BOOST = {
-  max: 100, verbrauch: 32, laden: 9, mindestStart: 18, faktor: 1.34, nachlauf: 0.25,
+  faktor: 1.3,          // +30 % gegenüber dem Grundtempo (nie mehr, auch nicht bei mehreren Feldern)
+  dauer: 2.5,           // Sekunden volle Wirkung; ein weiteres Feld frischt auf, addiert aber nicht
+  anstieg: 0.35,        // s bis zur vollen Wirkung (weicher Übergang)
+  abklingen: 0.9,       // s sanfte Rückkehr zum Grundtempo
+  feldLaenge: 7, feldBreite: 2.6,     // Feldgröße in Metern (Spurbreite 3,6)
+  ersteBei: 170,        // erstes, leicht erreichbares Feld (Einführung)
+  abstand: [260, 520],  // unregelmäßige Abstände danach (Meter)
+  zielFrei: 200,        // vor dem Ziel keine Felder mehr
 };
 
 const SCHADEN = {
@@ -51,7 +60,7 @@ const DRUCK = {
 
 const PUNKTE = {
   perfekt: 300, gut: 150, daneben: -50, beutel: 250,
-  proMeter: 0.12, boostFaktor: 1.5,
+  proMeter: 0.12, boostFaktor: 1.5, boostFeld: 100,
   ueberholen: 40, knapp: 75, knappAbstand: 0.75, serieMax: 10, serieStufe: 0.1,
   marke: 400, abschluss: 2500, proZustand: 20, abgehaengt: 150,
 };
@@ -79,8 +88,8 @@ const ABSCHNITTE = {
 const AUFTRAEGE = {
   containerkai: {
     nr: 1, name: 'Containerkai', kurz: 'Einfacher Einstieg',
-    text: 'Der Auftakt: ein Wertterminal am stillen Kai, danach eine kurze Fahrt mit viel Platz. Hier lernst du Lenken und Boost.',
-    spuren: 3, tempo: 31, dichte: 2.6, wechselFaktor: 0.6, mindestLuecke: 30,
+    text: 'Der Auftakt: ein Wertterminal am stillen Kai, danach eine kurze Fahrt mit viel Platz. Hier lernst du Lenken und die Boostfelder kennen.',
+    spuren: 3, tempo: 34, dichte: 3.0, wechselFaktor: 0.6, mindestLuecke: 30,
     polizei: { max: 1, erste: 32, pause: 18, tempo: 1.05, seit: 4.2, druck: 7 },
     abschnitte: [['zubringer', 900], ['autobahn', 1300], ['bruecke', 1000]],
     coup: { tempo: 0.5, zone: 0.22 },
@@ -88,8 +97,8 @@ const AUFTRAEGE = {
   },
   neonviertel: {
     nr: 2, name: 'Neonviertel', kurz: 'Dichterer Verkehr',
-    text: 'Zwischen Leuchtreklamen wird es voller. Wähle Lücken bewusst, nutze den Boost mit Köpfchen.',
-    spuren: 4, tempo: 34, dichte: 4.6, wechselFaktor: 1, mindestLuecke: 24,
+    text: 'Zwischen Leuchtreklamen wird es voller. Wähle Lücken bewusst, nimm Boostfelder nur, wenn der Weg danach frei ist.',
+    spuren: 4, tempo: 37, dichte: 5.2, wechselFaktor: 1, mindestLuecke: 24,
     polizei: { max: 2, erste: 22, pause: 13, tempo: 1.09, seit: 4.8, druck: 10 },
     abschnitte: [['zubringer', 600], ['industrie', 1200], ['tunnel', 900], ['autobahn', 1400]],
     coup: { tempo: 0.66, zone: 0.19 },
@@ -98,7 +107,7 @@ const AUFTRAEGE = {
   nachthafen: {
     nr: 3, name: 'Nachthafen', kurz: 'Lange, fordernde Fahrt',
     text: 'Die große Runde über den ganzen Nachthafen: Tunnel, Brücke, Industriezone. Längere Fahrt, anspruchsvoller Verkehr.',
-    spuren: 4, tempo: 37, dichte: 5.4, wechselFaktor: 1.2, mindestLuecke: 22,
+    spuren: 4, tempo: 40, dichte: 6.0, wechselFaktor: 1.2, mindestLuecke: 22,
     polizei: { max: 3, erste: 18, pause: 11, tempo: 1.1, seit: 5, druck: 11 },
     abschnitte: [['zubringer', 500], ['autobahn', 1200], ['tunnel', 900], ['bruecke', 1200], ['industrie', 1300], ['autobahn', 1000]],
     coup: { tempo: 0.8, zone: 0.17 },
@@ -107,7 +116,7 @@ const AUFTRAEGE = {
   training: {
     nr: 0, name: 'Training', kurz: 'Fahren üben',
     text: 'Ohne Coup und ohne Streife. Wenig Verkehr, alle Abschnitte einmal.',
-    spuren: 4, tempo: 32, dichte: 1.8, wechselFaktor: 0.4, mindestLuecke: 34,
+    spuren: 4, tempo: 35, dichte: 1.8, wechselFaktor: 0.4, mindestLuecke: 34,
     polizei: null,
     abschnitte: [['zubringer', 500], ['autobahn', 500], ['tunnel', 500], ['bruecke', 500], ['industrie', 500]],
     coup: null, erklaeren: true, farbe: '#FFD35A',

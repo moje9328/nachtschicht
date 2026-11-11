@@ -64,3 +64,19 @@ Nur für Tests: `?seed=123` (fester Verkehr), `?tempo=6` (Zeitraffer).
 ## Veröffentlichen (erst nach OK des Nutzers)
 
 GitHub-Repo `moje9328/nachtschicht` anlegen, Pages aus main /, pushen; in `~/spiele-seite` den Karten-Commit pushen (dort nur gezielt stagen).
+
+## Runde 2 (11.11.2026): Boostfelder statt Boostknopf, Musik, mehr Tempo und Verkehr
+
+**Wunsch:** Manuellen Boost (Knopf, Leertaste, Vorrat, Ladebalken) komplett entfernen. Stattdessen leuchtende Pfeilfelder auf einzelnen Spuren, die beim Überfahren automatisch ~2,5 s +30 % geben. Faire gemeinsame Planung mit dem Verkehr. Außerdem: dichterer Verkehr, sichtbare Verfolgung, höheres Grundtempo, durchgehende Arcade-Hintergrundmusik.
+
+**Änderungen:**
+- `BOOST` in `1-einstellungen.js` ist jetzt die zentrale Feld-Konfiguration: faktor 1,3, dauer 2,5 s, anstieg 0,35 s, abklingen 0,9 s, Feld 7 × 2,6 m, erstes Feld bei 170 m (eigene Spur), danach alle 260–520 m, 200 m vor dem Ziel keine mehr.
+- `3-fahrt.js`: `sp.boostRest`/`sp.boostAnteil` statt Vorrat. Überfahrt wird über die ganze Schrittstrecke geprüft (auch bei 120 m/s), die Wagenmitte muss über dem Feld liegen; jedes Feld genau einmal (`status` offen/genutzt/verpasst). Weiteres Feld frischt die Dauer auf, addiert nie Tempo.
+- Faire Platzierung `planeFelder` + `feldWegFrei`: Weg bis zum Feld, „Tor“ über das Feld und danach volle Boostdauer mit +30 % muss frei sein (vom Spieler aus und von jeder Position). Kein Feld unter Autos, nicht im Bild. `fair()` schützt kommende Feldwege auch gegen später erzeugten Verkehr und Spurwechsel.
+- Oberfläche: Boostknopf, Ladebalken, Tastenbelegung und alte Hinweise entfernt. Kompakte Anzeige `#boostWirkung` nur während der Wirkung. Steuerfläche kleiner (104–140 px) → größere Fahransicht. Neue Anleitung „Fahre über die leuchtenden Pfeilfelder für einen Temposchub!“. Punkte: +100 je Feld (Ergebniszeile „Boostfelder“).
+- Sicht nach hinten 9 → 14 m (Streife sichtbar), Seitenverhältnis 0,6. Grundtempo +3 m/s je Auftrag (34/37/40, Training 35), Verkehrsdichte 3,0/5,2/6,0.
+- `6-ton.js`: eigener Boostfeld-Sound; Hintergrundmusik als leiser Dur-Sequenzer (C–Am–F–G, 118 BPM) auf dem Musik-Regler, läuft im Coup und in der Fahrt ohne Neustart durch, Zusatz-Arpeggio bei hohem Druck. Endet mit dem Ergebnis (dort Abschlussjingle).
+
+**Tests:** Logik 139/139 (neu: einmalig, seitlich vorbei, nur Rand, Stapeln/Auffrischen, 120 m/s, weich, Ende-Reset, Felder fair platziert, erstes Feld eigene Spur, keine Ketten, Aufträge ganz ohne Felder schaffbar). Browser Chromium 131/131, WebKit 124/124 (kein Boostknopf/-balken, Leertaste/Shift/↑/W ohne Boost, Feld im echten Loop genau einmal, Anzeige nur während Wirkung, Pause hält Wirkzeit an, Musik läuft/endet). Schritt p99,9 0,6 ms.
+
+**Nicht geprüft:** Musik und Boost-Sound nicht angehört; Spielgefühl der neuen Werte nicht mit Menschen getestet (nur Bots); echtes Handy.

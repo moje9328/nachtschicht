@@ -90,13 +90,13 @@ const Ton = (() => {
     o.connect(g).connect(bus);
     o.start(t); o.stop(t + dauer + 0.05);
   }
-  function rausch(dauer, { laut = 0.2, f1 = 800, f2 = 300, q = 0.8, typ = 'lowpass', start = 0, anstieg = 0.004 } = {}) {
+  function rausch(dauer, { laut = 0.2, f1 = 800, f2 = 300, q = 0.8, typ = 'lowpass', start = 0, anstieg = 0.004, bus = busEffekt } = {}) {
     const t = ctx.currentTime + start;
     const q0 = ctx.createBufferSource(); q0.buffer = rauschen;
     const f = ctx.createBiquadFilter(); f.type = typ; f.Q.value = q;
     f.frequency.setValueAtTime(f1, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, f2), t + dauer);
     const g = ctx.createGain(); huelle(g, t, laut, dauer, anstieg);
-    q0.connect(f).connect(g).connect(busEffekt);
+    q0.connect(f).connect(g).connect(bus);
     q0.start(t, Math.random() * 0.5); q0.stop(t + dauer + 0.05);
   }
 
@@ -123,10 +123,48 @@ const Ton = (() => {
     return { o, g };
   }
 
+  // ---------- Hintergrundmusik: fröhliche Dur-Schleife, leise, läuft durch ----------
+  // Akkorde C | C | Am | Am | F | F | G | G, Achtel bei 118 BPM. Mehr Spannung nur durch eine
+  // zusätzliche leise Arpeggio-Schicht, nie durch Lauterwerden oder Hochpitchen.
+  const MEL = [0, null, 4, null, 7, null, 4, null, 9, null, 7, null, 4, null, null, null,
+    9, null, 12, null, 9, null, 4, null, 7, null, 4, null, null, null, null, null,
+    5, null, 9, null, 12, null, 9, null, 7, null, 5, null, 4, null, null, null,
+    7, null, 11, null, 14, null, 11, null, 12, null, null, null, 11, null, 7, null];
+  const BASS = [130.81, 130.81, 110, 110, 87.31, 87.31, 98, 98];
+  const ARP = [[0, 4, 7], [0, 4, 7], [-3, 0, 4], [-3, 0, 4], [-7, -3, 0], [-7, -3, 0], [-5, -1, 2], [-5, -1, 2]];
+  const ACHTEL = 60 / 118 / 2;
+  let musikAn = false, musikZeit = 0, musikSchritt = 0, musikSpannung = 0;
+  function musikPlanen() {
+    if (!musikAn || !bereit()) return;
+    const jetzt = ctx.currentTime;
+    if (musikZeit < jetzt) musikZeit = jetzt + 0.05;
+    while (musikZeit < jetzt + 0.3) {
+      const st = musikSchritt % 64, takt = Math.floor(st / 8), inTakt = st % 8, start = musikZeit - jetzt;
+      const m = MEL[st];
+      if (m != null) ton(523.25 * Math.pow(2, m / 12), 523.25 * Math.pow(2, m / 12), ACHTEL * 1.6, { typ: 'triangle', laut: 0.09, start, bus: busMusik, anstieg: 0.01 });
+      if (inTakt === 0 || inTakt === 4) ton(BASS[takt], BASS[takt], ACHTEL * 1.7, { typ: 'triangle', laut: 0.16, start, bus: busMusik, anstieg: 0.01 });
+      if (inTakt === 6) ton(BASS[takt] * 1.5, BASS[takt] * 1.5, ACHTEL * 0.9, { typ: 'triangle', laut: 0.1, start, bus: busMusik });
+      if (inTakt % 2 === 1) rausch(0.03, { laut: 0.012, f1: 7000, f2: 6000, typ: 'highpass', q: 0.7, start, bus: busMusik, anstieg: 0.002 });
+      if (musikSpannung > 0) {
+        const n = ARP[takt][inTakt % 3];
+        ton(1046.5 * Math.pow(2, n / 12), 1046.5 * Math.pow(2, n / 12), ACHTEL * 0.6, { typ: 'sine', laut: 0.03 * musikSpannung, start, bus: busMusik });
+      }
+      musikZeit += ACHTEL; musikSchritt++;
+    }
+  }
+
   return {
     wecke,
+    // Musik: an/aus (läuft weiter, ohne Neustart), Spannung 0–1 schaltet die Zusatzschicht
+    musik(an, spannung = 0) {
+      if (an && !musikAn) { musikAn = true; musikZeit = 0; }
+      if (!an) musikAn = false;
+      musikSpannung = klemme(spannung, 0, 1);
+      musikPlanen();
+    },
+    musikLaeuft: () => musikAn,
     istAn: () => an,
-    status: () => ({ kontext: ctx ? ctx.state : 'keiner', an, stimmen: stimmenEnde.length, motor: !!motor, sirene: !!sirene }),
+    status: () => ({ kontext: ctx ? ctx.state : 'keiner', an, stimmen: stimmenEnde.length, motor: !!motor, sirene: !!sirene, musik: musikAn }),
     setze(wert) {
       an = !!wert;
       if (an) { if (ctx || !navigator.userActivation || navigator.userActivation.hasBeenActive) wecke(); }
@@ -185,7 +223,14 @@ const Ton = (() => {
     },
     verpasst() { if (bereit() && frei(0.2)) ton(260, 120, 0.2, { typ: 'sine', laut: 0.14 }); },
     // Fahrt
-    boost() { if (bereit() && frei(0.45)) { rausch(0.42, { laut: 0.12, f1: 400, f2: 2400, typ: 'bandpass', q: 1.5, anstieg: 0.05 }); ton(180, 320, 0.35, { typ: 'sawtooth', laut: 0.03 }); } },
+    // Boostfeld: kurzes eigenes Arcade-Signal (aufsteigend), beim Auffrischen etwas kürzer
+    boostFeld(auffrischen) {
+      if (!bereit() || !frei(0.4)) return;
+      rausch(0.3, { laut: 0.08, f1: 600, f2: 3200, typ: 'bandpass', q: 1.4, anstieg: 0.03 });
+      const noten = auffrischen ? [784, 1175] : [523, 659, 784, 1047];
+      noten.forEach((f, i) => ton(f, f * 1.02, 0.09, { typ: 'square', laut: 0.05, start: i * 0.055 }));
+      ton(1568, 1568, 0.18, { typ: 'triangle', laut: 0.07, start: noten.length * 0.055 });
+    },
     unfall(stark) {
       if (!bereit() || !frei(0.4)) return;
       rausch(0.3, { laut: stark ? 0.32 : 0.2, f1: 900, f2: 120 });   // gedämpft: Tiefpass

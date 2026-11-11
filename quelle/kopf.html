@@ -59,7 +59,8 @@
   #zustandBalken.tief { --b: linear-gradient(90deg, #FF805B, #FFB35C); }
   #druckBalken { --b: linear-gradient(90deg, #4E8DFF, #FF4FD8); }
   #druckBalken.warnung { border-color: var(--magenta); box-shadow: 0 0 0 2px rgba(255, 79, 216, 0.45); }
-  #boostBalken { --b: linear-gradient(90deg, #FF9A3D, #FFD35A); }
+  #boostWirkung { flex: 0.75 1 0; --b: linear-gradient(90deg, #24D6CD, #FFD35A); border-color: var(--gelb); }
+  #boostWirkung[hidden] { display: none; }
   body[data-zustand="coup"] .nurFahrt, body[data-zustand="menue"] #hud { display: none; }
   body:not([data-modus="training"]) .nurTraining { display: none; }
   body[data-modus="training"] .nichtTraining { display: none; }
@@ -81,9 +82,6 @@
   }
   .steuerknopf svg { width: 30px; height: 30px; }
   .steuerknopf.gedrueckt { transform: translateY(2px); box-shadow: 0 2px 0 var(--bg); filter: brightness(1.25); }
-  #boostKnopf { border-radius: 50%; border-color: var(--orange); overflow: hidden; color: #FFF4DC; }
-  #boostKnopf .fuell { position: absolute; inset: auto 0 0 0; height: 100%; background: linear-gradient(0deg, rgba(255, 154, 61, 0.55), rgba(255, 211, 90, 0.35)); transform-origin: bottom; }
-  #boostKnopf span { position: relative; }
   #aktionKnopf { border-radius: 18px; border-color: var(--gelb); color: var(--gelb); font-size: 13px; }
   #ueberspringenKnopf { position: absolute; z-index: 3; min-height: 40px; font-size: 14px; }
   #neustartSchnell { pointer-events: auto; }
@@ -159,7 +157,7 @@
 <div id="sicherProbe"></div>
 <div id="app">
   <main id="buehne">
-    <canvas id="bild" tabindex="0" role="img" aria-label="Spielfeld: Straße von leicht schräg oben, dein Kombi unten. Ziehen auf der Steuerfläche, Pfeiltasten oder A und D lenken, Leertaste ist Boost."></canvas>
+    <canvas id="bild" tabindex="0" role="img" aria-label="Spielfeld: Straße von leicht schräg oben, dein Kombi unten. Ziehen auf der Steuerfläche, Pfeiltasten oder A und D lenken. Leuchtende Pfeilfelder auf der Straße geben einen Temposchub."></canvas>
     <div id="hud">
       <div class="hudzeile">
         <button class="rund" id="pauseKnopf" type="button" aria-label="Pause (P)">
@@ -178,7 +176,7 @@
       <div class="hudzeile nurFahrt">
         <div class="balken" id="zustandBalken" role="meter" aria-label="Fahrzeugzustand" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i><span>ZUSTAND</span></div>
         <div class="balken nichtTraining" id="druckBalken" role="meter" aria-label="Verfolgungsdruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><span>DRUCK</span></div>
-        <div class="balken" id="boostBalken" role="meter" aria-label="Boost" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i><span>BOOST</span></div>
+        <div class="balken" id="boostWirkung" role="timer" aria-label="Boost wirkt noch" hidden><i></i><span>BOOST!</span></div>
       </div>
     </div>
     <div id="lenkflaeche" aria-hidden="true">
@@ -190,7 +188,6 @@
         <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m6 3 6 5-6 5z"/></svg>
       </button>
     </div>
-    <button class="steuerknopf" id="boostKnopf" type="button" aria-label="Boost halten (Leertaste)"><i class="fuell"></i><span>BOOST</span></button>
     <button class="steuerknopf" id="aktionKnopf" type="button" aria-label="Impuls auslösen (Leertaste)">IMPULS!</button>
     <button class="btn klein" id="ueberspringenKnopf" type="button" hidden>Überspringen ›</button>
     <p id="tastenTipp" hidden></p>
@@ -252,17 +249,17 @@
       <ul class="regeln">
         <li><h3>Handy &amp; Tablet</h3><ul>
           <li>Finger auf die <b>untere Steuerfläche</b> legen und nach links oder rechts ziehen. Das Auto folgt deiner Bewegung, es springt nicht zum Finger.</li>
-          <li>Loslassen: Das Auto bleibt in seiner Spur.</li>
-          <li><b>BOOST</b>-Knopf gedrückt halten für einen kurzen Schub.</li></ul></li>
+          <li>Loslassen: Das Auto bleibt in seiner Spur.</li></ul></li>
         <li><h3>Computer</h3><ul>
-          <li>← → oder A / D lenken, Leertaste (oder ↑ / W) = Boost.</li>
+          <li>Pfeiltasten ← → oder A / D lenken.</li>
           <li>Mit der Maus kannst du auf der Straße ziehen.</li>
           <li>P oder Esc: Pause. M: Ton.</li></ul></li>
         <li><h3>Coup</h3><p>Tippen, Leertaste oder der IMPULS-Knopf, wenn der Zeiger im hellen Feld steht. Danach die fliegenden Beutetaschen im Ring fangen.</p></li>
         <li><h3>Fahrt</h3><ul>
           <li>Weiche dem Verkehr aus. Blinkende Autos wechseln gleich die Spur.</li>
+          <li><b>Fahre über die leuchtenden Pfeilfelder für einen Temposchub!</b> Sie sind freiwillig – nimm sie nur, wenn der Weg danach frei ist.</li>
           <li>Unfälle kosten Zustand und erhöhen den Druck.</li>
-          <li>Streifen kündigen sich unten mit einem blauen Pfeil an. Abstand und Streckenmarken senken den Druck.</li>
+          <li>Streifen kündigen sich unten mit einem blauen Pfeil an. Abstand, Boostfelder und Streckenmarken senken den Druck.</li>
           <li>Ist der Druck voll, hast du ein paar Sekunden, um ihn wieder zu senken.</li></ul></li>
       </ul>
       <label class="schalter"><input type="checkbox" id="knoepfeWahl"> Große Links-/Rechts-Knöpfe zusätzlich anzeigen</label>

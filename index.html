@@ -286,7 +286,8 @@
   #zustandBalken.tief { --b: linear-gradient(90deg, #FF805B, #FFB35C); }
   #druckBalken { --b: linear-gradient(90deg, #4E8DFF, #FF4FD8); }
   #druckBalken.warnung { border-color: var(--magenta); box-shadow: 0 0 0 2px rgba(255, 79, 216, 0.45); }
-  #boostBalken { --b: linear-gradient(90deg, #FF9A3D, #FFD35A); }
+  #boostWirkung { flex: 0.75 1 0; --b: linear-gradient(90deg, #24D6CD, #FFD35A); border-color: var(--gelb); }
+  #boostWirkung[hidden] { display: none; }
   body[data-zustand="coup"] .nurFahrt, body[data-zustand="menue"] #hud { display: none; }
   body:not([data-modus="training"]) .nurTraining { display: none; }
   body[data-modus="training"] .nichtTraining { display: none; }
@@ -308,9 +309,6 @@
   }
   .steuerknopf svg { width: 30px; height: 30px; }
   .steuerknopf.gedrueckt { transform: translateY(2px); box-shadow: 0 2px 0 var(--bg); filter: brightness(1.25); }
-  #boostKnopf { border-radius: 50%; border-color: var(--orange); overflow: hidden; color: #FFF4DC; }
-  #boostKnopf .fuell { position: absolute; inset: auto 0 0 0; height: 100%; background: linear-gradient(0deg, rgba(255, 154, 61, 0.55), rgba(255, 211, 90, 0.35)); transform-origin: bottom; }
-  #boostKnopf span { position: relative; }
   #aktionKnopf { border-radius: 18px; border-color: var(--gelb); color: var(--gelb); font-size: 13px; }
   #ueberspringenKnopf { position: absolute; z-index: 3; min-height: 40px; font-size: 14px; }
   #neustartSchnell { pointer-events: auto; }
@@ -386,7 +384,7 @@
 <div id="sicherProbe"></div>
 <div id="app">
   <main id="buehne">
-    <canvas id="bild" tabindex="0" role="img" aria-label="Spielfeld: Straße von leicht schräg oben, dein Kombi unten. Ziehen auf der Steuerfläche, Pfeiltasten oder A und D lenken, Leertaste ist Boost."></canvas>
+    <canvas id="bild" tabindex="0" role="img" aria-label="Spielfeld: Straße von leicht schräg oben, dein Kombi unten. Ziehen auf der Steuerfläche, Pfeiltasten oder A und D lenken. Leuchtende Pfeilfelder auf der Straße geben einen Temposchub."></canvas>
     <div id="hud">
       <div class="hudzeile">
         <button class="rund" id="pauseKnopf" type="button" aria-label="Pause (P)">
@@ -405,7 +403,7 @@
       <div class="hudzeile nurFahrt">
         <div class="balken" id="zustandBalken" role="meter" aria-label="Fahrzeugzustand" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i><span>ZUSTAND</span></div>
         <div class="balken nichtTraining" id="druckBalken" role="meter" aria-label="Verfolgungsdruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><span>DRUCK</span></div>
-        <div class="balken" id="boostBalken" role="meter" aria-label="Boost" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i><span>BOOST</span></div>
+        <div class="balken" id="boostWirkung" role="timer" aria-label="Boost wirkt noch" hidden><i></i><span>BOOST!</span></div>
       </div>
     </div>
     <div id="lenkflaeche" aria-hidden="true">
@@ -417,7 +415,6 @@
         <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m6 3 6 5-6 5z"/></svg>
       </button>
     </div>
-    <button class="steuerknopf" id="boostKnopf" type="button" aria-label="Boost halten (Leertaste)"><i class="fuell"></i><span>BOOST</span></button>
     <button class="steuerknopf" id="aktionKnopf" type="button" aria-label="Impuls auslösen (Leertaste)">IMPULS!</button>
     <button class="btn klein" id="ueberspringenKnopf" type="button" hidden>Überspringen ›</button>
     <p id="tastenTipp" hidden></p>
@@ -479,17 +476,17 @@
       <ul class="regeln">
         <li><h3>Handy &amp; Tablet</h3><ul>
           <li>Finger auf die <b>untere Steuerfläche</b> legen und nach links oder rechts ziehen. Das Auto folgt deiner Bewegung, es springt nicht zum Finger.</li>
-          <li>Loslassen: Das Auto bleibt in seiner Spur.</li>
-          <li><b>BOOST</b>-Knopf gedrückt halten für einen kurzen Schub.</li></ul></li>
+          <li>Loslassen: Das Auto bleibt in seiner Spur.</li></ul></li>
         <li><h3>Computer</h3><ul>
-          <li>← → oder A / D lenken, Leertaste (oder ↑ / W) = Boost.</li>
+          <li>Pfeiltasten ← → oder A / D lenken.</li>
           <li>Mit der Maus kannst du auf der Straße ziehen.</li>
           <li>P oder Esc: Pause. M: Ton.</li></ul></li>
         <li><h3>Coup</h3><p>Tippen, Leertaste oder der IMPULS-Knopf, wenn der Zeiger im hellen Feld steht. Danach die fliegenden Beutetaschen im Ring fangen.</p></li>
         <li><h3>Fahrt</h3><ul>
           <li>Weiche dem Verkehr aus. Blinkende Autos wechseln gleich die Spur.</li>
+          <li><b>Fahre über die leuchtenden Pfeilfelder für einen Temposchub!</b> Sie sind freiwillig – nimm sie nur, wenn der Weg danach frei ist.</li>
           <li>Unfälle kosten Zustand und erhöhen den Druck.</li>
-          <li>Streifen kündigen sich unten mit einem blauen Pfeil an. Abstand und Streckenmarken senken den Druck.</li>
+          <li>Streifen kündigen sich unten mit einem blauen Pfeil an. Abstand, Boostfelder und Streckenmarken senken den Druck.</li>
           <li>Ist der Druck voll, hast du ein paar Sekunden, um ihn wieder zu senken.</li></ul></li>
       </ul>
       <label class="schalter"><input type="checkbox" id="knoepfeWahl"> Große Links-/Rechts-Knöpfe zusätzlich anzeigen</label>
@@ -553,11 +550,11 @@ const SPUR = 3.6;                   // Breite einer Fahrspur
 // Sichtbereich: immer gleich viele Meter voraus, egal wie groß der Bildschirm ist
 const ANSICHT = {
   vorne: 62,        // Meter vor dem Spieler, die man sieht
-  hinten: 9,        // Meter hinter dem Spieler
+  hinten: 14,       // Meter hinter dem Spieler (genug, um die verfolgende Streife zu sehen)
   breite: 19.5,     // Meter quer (unten im Bild); breite Bildschirme sehen nicht mehr Straße
   schraeg: 0.36,    // leichte Schrägsicht: oben ist alles um so viel kleiner
   himmel: 0.075,    // Anteil oben für Horizont und Skyline
-  seitenverhaeltnis: 0.62, // Breite/Höhe des Sichtfensters
+  seitenverhaeltnis: 0.6,  // Breite/Höhe des Sichtfensters
   einblenden: 8,    // die letzten Meter oben werden sanft eingeblendet
 };
 
@@ -569,13 +566,22 @@ const SPIELER = {
   seitBremse: 150,                     // m/s² beim Loslassen/Gegenlenken: kein Nachrutschen
   zielFaktor: 11,                      // wie stark das Auto dem Fingerziel folgt
   beschl: 7.5,                         // m/s² bis zur Grundgeschwindigkeit
-  boostBeschl: 11,
+  boostBeschl: 9,                      // weicher Schub beim Boostfeld
   bremsen: 6,                          // m/s² zurück auf Grundtempo nach dem Boost
   neigungMax: 0.075,                   // rad, kleine Neigung beim Lenken
 };
 
+// Boostfelder: leuchtende Pfeilfelder auf einzelnen Spuren, lösen beim Überfahren
+// automatisch einen zeitlich begrenzten Schub aus (kein Vorrat, kein Knopf).
 const BOOST = {
-  max: 100, verbrauch: 32, laden: 9, mindestStart: 18, faktor: 1.34, nachlauf: 0.25,
+  faktor: 1.3,          // +30 % gegenüber dem Grundtempo (nie mehr, auch nicht bei mehreren Feldern)
+  dauer: 2.5,           // Sekunden volle Wirkung; ein weiteres Feld frischt auf, addiert aber nicht
+  anstieg: 0.35,        // s bis zur vollen Wirkung (weicher Übergang)
+  abklingen: 0.9,       // s sanfte Rückkehr zum Grundtempo
+  feldLaenge: 7, feldBreite: 2.6,     // Feldgröße in Metern (Spurbreite 3,6)
+  ersteBei: 170,        // erstes, leicht erreichbares Feld (Einführung)
+  abstand: [260, 520],  // unregelmäßige Abstände danach (Meter)
+  zielFrei: 200,        // vor dem Ziel keine Felder mehr
 };
 
 const SCHADEN = {
@@ -592,7 +598,7 @@ const DRUCK = {
 
 const PUNKTE = {
   perfekt: 300, gut: 150, daneben: -50, beutel: 250,
-  proMeter: 0.12, boostFaktor: 1.5,
+  proMeter: 0.12, boostFaktor: 1.5, boostFeld: 100,
   ueberholen: 40, knapp: 75, knappAbstand: 0.75, serieMax: 10, serieStufe: 0.1,
   marke: 400, abschluss: 2500, proZustand: 20, abgehaengt: 150,
 };
@@ -620,8 +626,8 @@ const ABSCHNITTE = {
 const AUFTRAEGE = {
   containerkai: {
     nr: 1, name: 'Containerkai', kurz: 'Einfacher Einstieg',
-    text: 'Der Auftakt: ein Wertterminal am stillen Kai, danach eine kurze Fahrt mit viel Platz. Hier lernst du Lenken und Boost.',
-    spuren: 3, tempo: 31, dichte: 2.6, wechselFaktor: 0.6, mindestLuecke: 30,
+    text: 'Der Auftakt: ein Wertterminal am stillen Kai, danach eine kurze Fahrt mit viel Platz. Hier lernst du Lenken und die Boostfelder kennen.',
+    spuren: 3, tempo: 34, dichte: 3.0, wechselFaktor: 0.6, mindestLuecke: 30,
     polizei: { max: 1, erste: 32, pause: 18, tempo: 1.05, seit: 4.2, druck: 7 },
     abschnitte: [['zubringer', 900], ['autobahn', 1300], ['bruecke', 1000]],
     coup: { tempo: 0.5, zone: 0.22 },
@@ -629,8 +635,8 @@ const AUFTRAEGE = {
   },
   neonviertel: {
     nr: 2, name: 'Neonviertel', kurz: 'Dichterer Verkehr',
-    text: 'Zwischen Leuchtreklamen wird es voller. Wähle Lücken bewusst, nutze den Boost mit Köpfchen.',
-    spuren: 4, tempo: 34, dichte: 4.6, wechselFaktor: 1, mindestLuecke: 24,
+    text: 'Zwischen Leuchtreklamen wird es voller. Wähle Lücken bewusst, nimm Boostfelder nur, wenn der Weg danach frei ist.',
+    spuren: 4, tempo: 37, dichte: 5.2, wechselFaktor: 1, mindestLuecke: 24,
     polizei: { max: 2, erste: 22, pause: 13, tempo: 1.09, seit: 4.8, druck: 10 },
     abschnitte: [['zubringer', 600], ['industrie', 1200], ['tunnel', 900], ['autobahn', 1400]],
     coup: { tempo: 0.66, zone: 0.19 },
@@ -639,7 +645,7 @@ const AUFTRAEGE = {
   nachthafen: {
     nr: 3, name: 'Nachthafen', kurz: 'Lange, fordernde Fahrt',
     text: 'Die große Runde über den ganzen Nachthafen: Tunnel, Brücke, Industriezone. Längere Fahrt, anspruchsvoller Verkehr.',
-    spuren: 4, tempo: 37, dichte: 5.4, wechselFaktor: 1.2, mindestLuecke: 22,
+    spuren: 4, tempo: 40, dichte: 6.0, wechselFaktor: 1.2, mindestLuecke: 22,
     polizei: { max: 3, erste: 18, pause: 11, tempo: 1.1, seit: 5, druck: 11 },
     abschnitte: [['zubringer', 500], ['autobahn', 1200], ['tunnel', 900], ['bruecke', 1200], ['industrie', 1300], ['autobahn', 1000]],
     coup: { tempo: 0.8, zone: 0.17 },
@@ -648,7 +654,7 @@ const AUFTRAEGE = {
   training: {
     nr: 0, name: 'Training', kurz: 'Fahren üben',
     text: 'Ohne Coup und ohne Streife. Wenig Verkehr, alle Abschnitte einmal.',
-    spuren: 4, tempo: 32, dichte: 1.8, wechselFaktor: 0.4, mindestLuecke: 34,
+    spuren: 4, tempo: 35, dichte: 1.8, wechselFaktor: 0.4, mindestLuecke: 34,
     polizei: null,
     abschnitte: [['zubringer', 500], ['autobahn', 500], ['tunnel', 500], ['bruecke', 500], ['industrie', 500]],
     coup: null, erklaeren: true, farbe: '#FFD35A',
@@ -827,7 +833,7 @@ function erstelleCoup(einst, zufallswert) {
 //
 // Fairness: Jedes neue Verkehrsauto und jeder Spurwechsel wird vorher
 // durchgerechnet (pfadFrei): Mit der tatsächlichen Geschwindigkeit des
-// Spielers (Grundtempo und Boost) und seiner begrenzten Seitengeschwindigkeit
+// Spielers (Grundtempo und Boostfeld-Tempo) und seiner begrenzten Seitengeschwindigkeit
 // muss es von seiner Position aus einen Weg an allen Autos vorbei geben, bis
 // er alle passiert hat. Sonst entsteht das Auto nicht bzw. der Wechsel nicht.
 // ===================================================================
@@ -844,21 +850,21 @@ function erstelleFahrt(auftragId, optionen = {}) {
 
   const sp = {
     d: 0, x: spurX(Math.floor((SP - 1) / 2), SP) + (SP % 2 ? 0 : SPUR / 2), v: vGrund * (optionen.startFaktor || 0.55),
-    vx: 0, neigung: 0, zustand: 100, boost: BOOST.max, boostAn: false, boostPause: 0, schutz: 0,
+    vx: 0, neigung: 0, zustand: 100, boostRest: 0, boostAnteil: 0, boostAn: false, schutz: 0,
     planke: 0, laenge: SPIELER.laenge, breite: SPIELER.breite,
   };
   if (SP % 2 === 0) sp.x = spurX(SP / 2, SP);   // gerade Spurzahl: rechte Mittelspur
 
   const w = {
     auftragId, A, strecke, sp, zeit: 0, phase: 'fahrt', grund: '', phaseZeit: 0,
-    autos: [], polizei: [], anmeldungen: [],
+    autos: [], polizei: [], anmeldungen: [], felder: [], naechstesFeld: BOOST.ersteBei,
     druck: 0, warnung: -1, maxDruck: 0,
-    punkte: { strecke: 0, ueberholen: 0, knapp: 0, marken: 0, abschluss: 0, zustand: 0, abgehaengt: 0 },
-    statistik: { ueberholt: 0, knapp: 0, unfaelle: 0, polizeiKontakt: 0, abgehaengt: 0, boostZeit: 0, maxTempo: 0, schaden: 0, warnungen: 0, besteSerie: 0 },
+    punkte: { strecke: 0, boostFelder: 0, ueberholen: 0, knapp: 0, marken: 0, abschluss: 0, zustand: 0, abgehaengt: 0 },
+    statistik: { ueberholt: 0, knapp: 0, unfaelle: 0, polizeiKontakt: 0, abgehaengt: 0, boostZeit: 0, boostFelder: 0, maxTempo: 0, schaden: 0, warnungen: 0, besteSerie: 0 },
     serie: 0, letzterUnfall: -99, markeNr: 0,
     ereignisse: [], naechsteId: 1,
     spawnUhr: 0, polizeiUhr: P ? P.erste : 1e9,
-    pruefung: { versuche: 0, abgelehnt: 0, wechselAbgelehnt: 0, rechnungen: 0 },
+    pruefung: { versuche: 0, abgelehnt: 0, wechselAbgelehnt: 0, rechnungen: 0, feldVerschoben: 0 },
     vGrund, HALB, SP,
   };
   const sende = (typ, daten = {}) => w.ereignisse.push({ typ, zeit: w.zeit, ...daten });
@@ -964,7 +970,86 @@ function erstelleFahrt(auftragId, optionen = {}) {
     for (const vs of VORSPRUENGE) {
       if (vorherFrei(vGrund, true, vs) && !pfadFrei(extra, vGrund, true, ersatz, vs, true)) return false;
     }
+    // Verkehr und Boostfelder gemeinsam: Ein Weg über ein kommendes Feld (mit dem höheren
+    // Tempo danach) darf durch neuen Verkehr nicht verbaut werden.
+    for (const f of w.felder) {
+      if (f.status !== 'offen' || f.d < sp.d || f.d > sp.d + 220) continue;
+      if (!merk.has('feld' + f.id)) merk.set('feld' + f.id, feldWegFrei(f, [], null, true));
+      if (merk.get('feld' + f.id) && !feldWegFrei(f, extra, ersatz, true)) return false;
+    }
     return true;
+  }
+
+  // ---------------------------------------------------------------
+  // Weg über ein Boostfeld: bis zum Feld Grundtempo, auf dem Feld muss die Mitte des Autos
+  // über dem Feld liegen, danach volle Boostdauer mit +30 % und Abklingen.
+  function feldWegFrei(f, extra = [], ersatz = null, alleStarts = false) {
+    const liste = [];
+    for (const a of w.autos) liste.push(ersatz && ersatz.has(a.id) ? ersatz.get(a.id) : a);
+    for (const a of extra) liste.push(a);
+    const v0 = Math.max(vGrund, sp.v), vB = vGrund * BOOST.faktor;
+    const tF = Math.max(0, (f.d - sp.d) / v0);
+    const tB = BOOST.dauer + BOOST.abklingen * 0.5;
+    const weg = t => (t <= tF ? v0 * t : v0 * tF + vB * Math.min(t - tF, tB) + vGrund * Math.max(0, t - tF - tB));
+    let T = tF + 0.5;
+    for (const a of liste) {
+      const vor = a.d + a.laenge / 2 + 12 - sp.d;
+      if (vor > 0) T = Math.max(T, vor / Math.max(0.8, vGrund - a.v));
+    }
+    T = Math.min(T, 30);
+    const PL = PL_B + 3, PW = PW_B + 0.35;
+    const dt = 0.1, schritte = Math.ceil(T / dt);
+    const seitZellen = Math.max(1, Math.floor(SPIELER.seitMax * 0.7 * dt / ZELLE));
+    let reich = new Uint8Array(ZELLEN), neu = new Uint8Array(ZELLEN);
+    if (alleStarts) reich.fill(1);
+    else { const j0 = Math.round((klemme(sp.x, X_MIN, X_MAX) - X_MIN) / ZELLE); for (let j = j0 - 1; j <= j0 + 1; j++) if (j >= 0 && j < ZELLEN) reich[j] = 1; }
+    const block = new Uint8Array(ZELLEN);
+    const kTor = Math.max(1, Math.round(tF / dt));
+    for (let k = 1; k <= schritte; k++) {
+      const t = k * dt, pd = sp.d + weg(t);
+      block.fill(0);
+      for (const a of liste) {
+        if (Math.abs(a.d + a.v * t - pd) >= (a.laenge + PL) / 2) continue;
+        const ax = autoX(a, t), r = (a.breite + PW) / 2;
+        const j1 = Math.max(0, Math.ceil((ax - r - X_MIN) / ZELLE)), j2 = Math.min(ZELLEN - 1, Math.floor((ax + r - X_MIN) / ZELLE));
+        for (let j = j1; j <= j2; j++) block[j] = 1;
+      }
+      if (k === kTor) for (let j = 0; j < ZELLEN; j++) if (Math.abs(X_MIN + j * ZELLE - f.x) > f.breite / 2 - 0.2) block[j] = 1;   // „Tor“: über das Feld
+      let irgendwas = false, summe = 0;
+      for (let j = 0; j < Math.min(ZELLEN, seitZellen); j++) summe += reich[j];
+      for (let j = 0; j < ZELLEN; j++) {
+        if (j + seitZellen < ZELLEN) summe += reich[j + seitZellen];
+        if (j - seitZellen - 1 >= 0) summe -= reich[j - seitZellen - 1];
+        const r = !block[j] && summe > 0 ? 1 : 0;
+        neu[j] = r; if (r) irgendwas = true;
+      }
+      if (!irgendwas) return false;
+      const tmp = reich; reich = neu; neu = tmp;
+    }
+    return true;
+  }
+
+  // Boostfelder platzieren: außerhalb des Bildes, auf einer Spur ohne Auto darüber, nur wenn
+  // der Weg über das Feld und danach mit Boosttempo frei ist. Erstes Feld leicht (eigene Spur).
+  function planeFelder() {
+    if (sp.d + ANSICHT.vorne + 30 < w.naechstesFeld) return;
+    const d = Math.max(w.naechstesFeld, sp.d + ANSICHT.vorne + 12);
+    if (d > strecke.zielVon - BOOST.zielFrei) { w.naechstesFeld = 1e9; return; }
+    const erstes = w.felder.length === 0;
+    const eigene = spurVon(sp.x);
+    let spuren = [...Array(SP).keys()].sort(() => rnd() - 0.5);
+    if (erstes) spuren = [eigene];
+    else if (rnd() < 0.35) spuren = [eigene, ...spuren.filter(s => s !== eigene)];
+    for (const s of spuren) {
+      const f = { id: w.naechsteId++, d, spur: s, x: spurX(s, SP), laenge: BOOST.feldLaenge, breite: BOOST.feldBreite, status: 'offen' };
+      const darueber = w.autos.concat(w.polizei).some(a => Math.abs(a.x - f.x) < (a.breite + f.breite) / 2 && Math.abs(a.d - f.d) < (a.laenge + f.laenge) / 2 + 12);
+      if (darueber) continue;
+      if (!feldWegFrei(f, [], null, false) || !feldWegFrei(f, [], null, true)) continue;
+      w.felder.push(f);
+      w.naechstesFeld = d + rnd.zwischen(BOOST.abstand[0], BOOST.abstand[1]);
+      return;
+    }
+    w.naechstesFeld = d + 25; w.pruefung.feldVerschoben++;   // gerade kein fairer Platz: etwas später versuchen
   }
 
   // ---------------------------------------------------------------
@@ -1107,6 +1192,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
     }
     // Autos verlassen das Bild nach hinten bzw. sind zu weit vorne
     w.autos = w.autos.filter(a => a.d > sp.d - ANSICHT.hinten - 30 && a.d < sp.d + 400);
+    if (w.felder.length > 6) w.felder = w.felder.filter(f => f.d > sp.d - ANSICHT.hinten - 20);
   }
 
   // ---------------------------------------------------------------
@@ -1225,22 +1311,18 @@ function erstelleFahrt(auftragId, optionen = {}) {
   // Spieler
   function aktualisiereSpieler(e) {
     const imZiel = w.phase !== 'fahrt';
-    // Boost
-    const willBoost = !imZiel && e.boost;
-    if (willBoost && (sp.boostAn || sp.boost >= BOOST.mindestStart) && sp.boost > 0) {
-      if (!sp.boostAn) sende('boostStart');
-      sp.boostAn = true; sp.boostPause = BOOST.nachlauf;
-      sp.boost = Math.max(0, sp.boost - BOOST.verbrauch * DT);
-      w.statistik.boostZeit += DT;
-      if (sp.boost <= 0) sende('boostLeer');
-    } else {
-      if (sp.boostAn) sende('boostEnde');
-      sp.boostAn = false;
-      sp.boostPause -= DT;
-      if (sp.boostPause <= 0) sp.boost = Math.min(BOOST.max, sp.boost + BOOST.laden * DT);
-    }
-    // Längs: automatisch auf Grundtempo, Boost darüber; im Ziel ausrollen
-    const vZiel = imZiel ? (w.phase === 'ziel' ? 0 : 0) : sp.boostAn ? vGrund * BOOST.faktor : vGrund;
+    // Boost nur durch Boostfelder: weich an, volle Dauer, sanft zurück
+    if (!imZiel && sp.boostRest > 0) {
+      sp.boostRest = Math.max(0, sp.boostRest - DT);
+      sp.boostAnteil = Math.min(1, sp.boostAnteil + DT / BOOST.anstieg);
+    } else sp.boostAnteil = Math.max(0, sp.boostAnteil - DT / BOOST.abklingen);
+    if (imZiel) sp.boostRest = 0;
+    const warAn = sp.boostAn;
+    sp.boostAn = sp.boostAnteil > 0.02;
+    if (warAn && !sp.boostAn) sende('boostEnde');
+    if (sp.boostAn) w.statistik.boostZeit += DT;
+    // Längs: automatisch auf Grundtempo, mit Boostfeld bis +30 %; im Ziel ausrollen
+    const vZiel = imZiel ? 0 : vGrund * (1 + (BOOST.faktor - 1) * glatt(sp.boostAnteil));
     if (sp.v < vZiel) sp.v = Math.min(vZiel, sp.v + (sp.boostAn ? SPIELER.boostBeschl : SPIELER.beschl) * DT);
     else sp.v = Math.max(vZiel, sp.v - (imZiel ? 9 : SPIELER.bremsen) * DT);
     w.statistik.maxTempo = Math.max(w.statistik.maxTempo, sp.v);
@@ -1260,7 +1342,24 @@ function erstelleFahrt(auftragId, optionen = {}) {
     }
     if (sp.planke > 0) sp.planke -= DT;
     sp.neigung += ((sp.vx / SPIELER.seitMax) * SPIELER.neigungMax - sp.neigung) * Math.min(1, DT * 14);
+    const dAlt = sp.d;
     sp.d += sp.v * DT;
+    // Boostfelder: Überfahrt in Weltkoordinaten, über die ganze in diesem Schritt gefahrene Strecke
+    // (kein Überspringen bei hohem Tempo). Die Wagenmitte muss über dem Feld liegen.
+    for (const f of w.felder) {
+      if (f.status !== 'offen') continue;
+      const hinten = dAlt - SPIELER.trefferLaenge / 2, vorne = sp.d + SPIELER.trefferLaenge / 2;
+      if (vorne >= f.d - f.laenge / 2 && hinten <= f.d + f.laenge / 2) {
+        if (!imZiel && Math.abs(sp.x - f.x) <= f.breite / 2) {
+          f.status = 'genutzt';
+          const auffrischen = sp.boostRest > 0 || sp.boostAnteil > 0.02;
+          sp.boostRest = BOOST.dauer;            // auffrischen, nicht addieren
+          w.statistik.boostFelder++;
+          w.punkte.boostFelder += PUNKTE.boostFeld;
+          sende('boostFeld', { auffrischen, punkte: PUNKTE.boostFeld, id: f.id });
+        }
+      } else if (hinten > f.d + f.laenge / 2) f.status = 'verpasst';
+    }
     if (sp.schutz > 0) sp.schutz = Math.max(0, sp.schutz - DT);
   }
 
@@ -1402,7 +1501,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       w.punkte.abschluss = PUNKTE.abschluss * (A.nr || 0.4);
       w.punkte.zustand = Math.round(sp.zustand) * PUNKTE.proZustand;
     }
-    sp.boostAn = false;
+    sp.boostRest = 0;
     sende('ende', { grund });
   }
 
@@ -1419,7 +1518,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       w.punkte.strecke += sp.v * DT * PUNKTE.proMeter * (sp.boostAn ? PUNKTE.boostFaktor : 1);
       druckUndWarnung();
       w.spawnUhr -= DT;
-      if (w.spawnUhr <= 0) { w.spawnUhr = 0.3; versucheSpawn(); }
+      if (w.spawnUhr <= 0) { w.spawnUhr = 0.3; versucheSpawn(); planeFelder(); }
       planePolizei(DT);
       while (w.markeNr < strecke.marken.length && sp.d >= strecke.marken[w.markeNr]) {
         w.markeNr++; w.punkte.marken += PUNKTE.marke;
@@ -1436,7 +1535,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
 
   function summe() {
     const p = w.punkte;
-    return Math.round(p.strecke + p.ueberholen + p.knapp + p.marken + p.abschluss + p.zustand + p.abgehaengt);
+    return Math.round(p.strecke + p.boostFelder + p.ueberholen + p.knapp + p.marken + p.abschluss + p.zustand + p.abgehaengt);
   }
 
   return {
@@ -1622,13 +1721,13 @@ const Ton = (() => {
     o.connect(g).connect(bus);
     o.start(t); o.stop(t + dauer + 0.05);
   }
-  function rausch(dauer, { laut = 0.2, f1 = 800, f2 = 300, q = 0.8, typ = 'lowpass', start = 0, anstieg = 0.004 } = {}) {
+  function rausch(dauer, { laut = 0.2, f1 = 800, f2 = 300, q = 0.8, typ = 'lowpass', start = 0, anstieg = 0.004, bus = busEffekt } = {}) {
     const t = ctx.currentTime + start;
     const q0 = ctx.createBufferSource(); q0.buffer = rauschen;
     const f = ctx.createBiquadFilter(); f.type = typ; f.Q.value = q;
     f.frequency.setValueAtTime(f1, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, f2), t + dauer);
     const g = ctx.createGain(); huelle(g, t, laut, dauer, anstieg);
-    q0.connect(f).connect(g).connect(busEffekt);
+    q0.connect(f).connect(g).connect(bus);
     q0.start(t, Math.random() * 0.5); q0.stop(t + dauer + 0.05);
   }
 
@@ -1655,10 +1754,48 @@ const Ton = (() => {
     return { o, g };
   }
 
+  // ---------- Hintergrundmusik: fröhliche Dur-Schleife, leise, läuft durch ----------
+  // Akkorde C | C | Am | Am | F | F | G | G, Achtel bei 118 BPM. Mehr Spannung nur durch eine
+  // zusätzliche leise Arpeggio-Schicht, nie durch Lauterwerden oder Hochpitchen.
+  const MEL = [0, null, 4, null, 7, null, 4, null, 9, null, 7, null, 4, null, null, null,
+    9, null, 12, null, 9, null, 4, null, 7, null, 4, null, null, null, null, null,
+    5, null, 9, null, 12, null, 9, null, 7, null, 5, null, 4, null, null, null,
+    7, null, 11, null, 14, null, 11, null, 12, null, null, null, 11, null, 7, null];
+  const BASS = [130.81, 130.81, 110, 110, 87.31, 87.31, 98, 98];
+  const ARP = [[0, 4, 7], [0, 4, 7], [-3, 0, 4], [-3, 0, 4], [-7, -3, 0], [-7, -3, 0], [-5, -1, 2], [-5, -1, 2]];
+  const ACHTEL = 60 / 118 / 2;
+  let musikAn = false, musikZeit = 0, musikSchritt = 0, musikSpannung = 0;
+  function musikPlanen() {
+    if (!musikAn || !bereit()) return;
+    const jetzt = ctx.currentTime;
+    if (musikZeit < jetzt) musikZeit = jetzt + 0.05;
+    while (musikZeit < jetzt + 0.3) {
+      const st = musikSchritt % 64, takt = Math.floor(st / 8), inTakt = st % 8, start = musikZeit - jetzt;
+      const m = MEL[st];
+      if (m != null) ton(523.25 * Math.pow(2, m / 12), 523.25 * Math.pow(2, m / 12), ACHTEL * 1.6, { typ: 'triangle', laut: 0.09, start, bus: busMusik, anstieg: 0.01 });
+      if (inTakt === 0 || inTakt === 4) ton(BASS[takt], BASS[takt], ACHTEL * 1.7, { typ: 'triangle', laut: 0.16, start, bus: busMusik, anstieg: 0.01 });
+      if (inTakt === 6) ton(BASS[takt] * 1.5, BASS[takt] * 1.5, ACHTEL * 0.9, { typ: 'triangle', laut: 0.1, start, bus: busMusik });
+      if (inTakt % 2 === 1) rausch(0.03, { laut: 0.012, f1: 7000, f2: 6000, typ: 'highpass', q: 0.7, start, bus: busMusik, anstieg: 0.002 });
+      if (musikSpannung > 0) {
+        const n = ARP[takt][inTakt % 3];
+        ton(1046.5 * Math.pow(2, n / 12), 1046.5 * Math.pow(2, n / 12), ACHTEL * 0.6, { typ: 'sine', laut: 0.03 * musikSpannung, start, bus: busMusik });
+      }
+      musikZeit += ACHTEL; musikSchritt++;
+    }
+  }
+
   return {
     wecke,
+    // Musik: an/aus (läuft weiter, ohne Neustart), Spannung 0–1 schaltet die Zusatzschicht
+    musik(an, spannung = 0) {
+      if (an && !musikAn) { musikAn = true; musikZeit = 0; }
+      if (!an) musikAn = false;
+      musikSpannung = klemme(spannung, 0, 1);
+      musikPlanen();
+    },
+    musikLaeuft: () => musikAn,
     istAn: () => an,
-    status: () => ({ kontext: ctx ? ctx.state : 'keiner', an, stimmen: stimmenEnde.length, motor: !!motor, sirene: !!sirene }),
+    status: () => ({ kontext: ctx ? ctx.state : 'keiner', an, stimmen: stimmenEnde.length, motor: !!motor, sirene: !!sirene, musik: musikAn }),
     setze(wert) {
       an = !!wert;
       if (an) { if (ctx || !navigator.userActivation || navigator.userActivation.hasBeenActive) wecke(); }
@@ -1717,7 +1854,14 @@ const Ton = (() => {
     },
     verpasst() { if (bereit() && frei(0.2)) ton(260, 120, 0.2, { typ: 'sine', laut: 0.14 }); },
     // Fahrt
-    boost() { if (bereit() && frei(0.45)) { rausch(0.42, { laut: 0.12, f1: 400, f2: 2400, typ: 'bandpass', q: 1.5, anstieg: 0.05 }); ton(180, 320, 0.35, { typ: 'sawtooth', laut: 0.03 }); } },
+    // Boostfeld: kurzes eigenes Arcade-Signal (aufsteigend), beim Auffrischen etwas kürzer
+    boostFeld(auffrischen) {
+      if (!bereit() || !frei(0.4)) return;
+      rausch(0.3, { laut: 0.08, f1: 600, f2: 3200, typ: 'bandpass', q: 1.4, anstieg: 0.03 });
+      const noten = auffrischen ? [784, 1175] : [523, 659, 784, 1047];
+      noten.forEach((f, i) => ton(f, f * 1.02, 0.09, { typ: 'square', laut: 0.05, start: i * 0.055 }));
+      ton(1568, 1568, 0.18, { typ: 'triangle', laut: 0.07, start: noten.length * 0.055 });
+    },
     unfall(stark) {
       if (!bereit() || !frei(0.4)) return;
       rausch(0.3, { laut: stark ? 0.32 : 0.2, f1: 900, f2: 120 });   // gedämpft: Tiefpass
@@ -1904,6 +2048,7 @@ const Grafik = (() => {
     // Diffusor
     c.fillStyle = '#0D0A1A'; rr(c, -0.3, L / 2 + H * 0.84, 0.6, H * 0.14, 0.03); c.fill();
     if (o.boost) {
+      c.strokeStyle = 'rgba(255, 211, 90, 0.55)'; c.lineWidth = 0.06; rr(c, -0.6, -L / 2 - 0.06, 1.2, L + H + 0.12, 0.2); c.stroke();
       // dezente Auspuffflammen
       for (const s of [-0.18, 0.18]) {
         const f = 0.7 + 0.3 * Math.sin((o.zeit || 0) * 40 + s * 10);
@@ -2301,6 +2446,42 @@ const Grafik = (() => {
     c.globalAlpha = 1;
   }
 
+  // Boostfeld: leuchtende türkis-gelbe Pfeile in Fahrtrichtung, flach auf der Fahrbahn
+  function boostFeld(c, P, f, zeit) {
+    const d0 = f.d - f.laenge / 2, d1 = f.d + f.laenge / 2;
+    if (d1 < P.dMin || d0 > P.dMax) return;
+    const genutzt = f.status !== 'offen';
+    const a = Math.max(d0, P.dMin), b = Math.min(d1, P.dMax), x0 = f.x - f.breite / 2, x1 = f.x + f.breite / 2;
+    const pt = (d, x) => [P.x(d, x), P.y(d)];
+    c.save();
+    c.globalAlpha = P.alpha(d1) * (genutzt ? 0.3 : 1);
+    quad(c, pt(a, x0), pt(a, x1), pt(b, x1), pt(b, x0), 'rgba(36, 214, 205, 0.16)');
+    c.strokeStyle = 'rgba(36, 214, 205, 0.85)'; c.lineWidth = Math.max(1.2, 0.12 * P.pxm * P.s(f.d));
+    c.beginPath(); c.moveTo(...pt(a, x0)); c.lineTo(...pt(b, x0)); c.moveTo(...pt(a, x1)); c.lineTo(...pt(b, x1)); c.stroke();
+    // drei Pfeile; ein sanfter Lichtlauf nach vorne (bei „weniger Bewegung“ ruhig)
+    for (let i = 0; i < 3; i++) {
+      const dd = d0 + 0.8 + i * 2.1, spitze = dd + 1.5, dicke = 0.7, br = f.breite * 0.36;
+      if (spitze < P.dMin || dd > P.dMax) continue;
+      const hell = genutzt || ruhig ? 0.85 : 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(zeit * 5 - i * 1.4));
+      c.fillStyle = i % 2 ? `rgba(255, 211, 90, ${hell})` : `rgba(36, 214, 205, ${hell})`;
+      c.beginPath();
+      c.moveTo(...pt(dd, f.x - br)); c.lineTo(...pt(spitze, f.x)); c.lineTo(...pt(dd, f.x + br));
+      c.lineTo(...pt(dd - dicke, f.x + br)); c.lineTo(...pt(spitze - dicke, f.x)); c.lineTo(...pt(dd - dicke, f.x - br));
+      c.closePath(); c.fill();
+    }
+    c.restore();
+  }
+  // Vorankündigung: Felder knapp hinter dem Horizont als kleiner Pfeil oben in ihrer Spur
+  function feldVorschau(c, P, f, zeit) {
+    if (f.status !== 'offen' || f.d - f.laenge / 2 <= P.dMax || f.d > P.dMax + 45) return;
+    const X = P.x(P.dMax, f.x), Y = P.oben + 4, g = Math.max(5, 0.5 * P.pxm * P.s(P.dMax));
+    c.save();
+    c.globalAlpha = ruhig ? 0.85 : 0.65 + 0.25 * Math.sin(zeit * 4);
+    c.fillStyle = '#FFD35A'; c.strokeStyle = '#24D6CD'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(X, Y - g); c.lineTo(X + g, Y + g * 0.4); c.lineTo(X - g, Y + g * 0.4); c.closePath(); c.fill(); c.stroke();
+    c.restore();
+  }
+
   // Streckenmarke (Überkopf-Banner) und Zielbereich
   function marke(c, P, d, text) {
     const halb = P.halb + 1.0, a = aufrecht(P, d, -halb, 5.2), b = aufrecht(P, d, halb, 5.2);
@@ -2418,6 +2599,7 @@ const Grafik = (() => {
     lichtpfuetzen(c, P, strecke);
     markierungen(c, P, strecke);
     zielFlaeche(c, P, strecke.zielVon, strecke.laenge);
+    for (const f of w.felder) boostFeld(c, P, f, zeit);
     // Zeichenliste: Kulisse und Fahrzeuge, von hinten (weit vorne) nach vorne
     const liste = [];
     kulisse(P, strecke, liste);
@@ -2434,6 +2616,7 @@ const Grafik = (() => {
     liste.push({ d: sp.d, spieler: true, mal: cc => zeichneFahrzeug(cc, P, sp, 'spieler', { neigung: sp.neigung, boost: sp.boostAn, zeit, alpha: schutzBlink ? 0.55 : 1 }) });
     liste.sort((a, b) => b.d - a.d || (a.spieler ? 1 : -1));
     for (const e of liste) e.mal(c);
+    for (const f of w.felder) feldVorschau(c, P, f, zeit);
     zeichneWeltPartikel(c, P);
     zeichneBlasen(c, P, sp.d);
     // Vorwarnung für Streifen: Pfeil am unteren Rand in der Spur
@@ -2667,7 +2850,7 @@ const Grafik = (() => {
 
 const Eingabe = (() => {
   const st = {
-    links: new Set(), rechts: new Set(), boost: new Set(),
+    links: new Set(), rechts: new Set(),
     zug: null,                 // { id, startX, x0, mPerPx, letzteX }
     aktiv: () => null,         // liefert 'fahrt' | 'coup' | null
     spieler: () => ({ x: 0, min: -5, max: 5, breite: 12 }),
@@ -2677,7 +2860,7 @@ const Eingabe = (() => {
   };
 
   function leeren() {
-    st.links.clear(); st.rechts.clear(); st.boost.clear();
+    st.links.clear(); st.rechts.clear();
     st.zug = null;
   }
 
@@ -2685,7 +2868,7 @@ const Eingabe = (() => {
     const r = (st.rechts.size ? 1 : 0) - (st.links.size ? 1 : 0);
     let ziel = null;
     if (st.zug && st.zug.ziel != null) ziel = st.zug.ziel;
-    return { ziel: r ? null : ziel, richtung: r, boost: st.boost.size > 0 };
+    return { ziel: r ? null : ziel, richtung: r };
   }
 
   // Bewegung des Fingers → Ziel in Metern. Am Straßenrand wird der Bezug nachgeführt,
@@ -2726,7 +2909,7 @@ const Eingabe = (() => {
     el.addEventListener('lostpointercapture', ende);
   }
 
-  // Halte-Knöpfe (links, rechts, Boost): eigene Pointer, gehen nie an die Fläche weiter
+  // Halte-Knöpfe (links, rechts): eigene Pointer, gehen nie an die Fläche weiter
   function verbindeKnopf(el, menge) {
     const weg = e => { menge.delete(e.pointerId); el.classList.remove('gedrueckt'); };
     el.addEventListener('pointerdown', e => {
@@ -2762,17 +2945,17 @@ const Eingabe = (() => {
     }
     if (LINKS.includes(e.code)) { e.preventDefault(); st.links.add(e.code); }
     else if (RECHTS.includes(e.code)) { e.preventDefault(); st.rechts.add(e.code); }
-    else if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); st.boost.add(e.code); }
+    else if (e.code === 'Space') e.preventDefault();   // in der Fahrt ohne Funktion, aber kein Seitenscrollen
   });
   window.addEventListener('keyup', e => {
-    st.links.delete(e.code); st.rechts.delete(e.code); st.boost.delete(e.code);
+    st.links.delete(e.code); st.rechts.delete(e.code);
   });
   // Fokusverlust: alle gedrückten Tasten und Finger vergessen
   window.addEventListener('blur', leeren);
 
   return {
     st, lesen, leeren, neuBasis, verbindeFlaeche,
-    verbindeKnoepfe(links, rechts, boost) { verbindeKnopf(links, st.links); verbindeKnopf(rechts, st.rechts); verbindeKnopf(boost, st.boost); },
+    verbindeKnoepfe(links, rechts) { verbindeKnopf(links, st.links); verbindeKnopf(rechts, st.rechts); },
   };
 })();
 
@@ -3165,19 +3348,17 @@ const PixelDuell = (() => {
     const hudH = (hud.offsetHeight || 80) + Math.max(6, sr.t) + 6;
     const quer = W > Hh * 0.95;
     lay.modus = touchGesehen && !quer ? 'unten' : 'seite';
-    const flaeche = $('lenkflaeche'), boost = $('boostKnopf'), aktion = $('aktionKnopf'), links = $('linksKnopf'), rechts = $('rechtsKnopf');
+    const flaeche = $('lenkflaeche'), aktion = $('aktionKnopf'), links = $('linksKnopf'), rechts = $('rechtsKnopf');
     const knoepfe = Speicher.knoepfe;
     const setze = (el, x, y, w, h) => Object.assign(el.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
     let area;
     if (lay.modus === 'unten') {
-      const steuerH = klemme(Hh * 0.2, 128, 178);
+      const steuerH = klemme(Hh * 0.15, 104, 140);   // ohne Boostknopf: mehr Platz für die Fahransicht
       const oben = Hh - sr.b - steuerH;
       area = { x: sr.l, y: hudH, w: W - sr.l - sr.r, h: oben - hudH - 4 };
       setze(flaeche, 0, oben, W, steuerH + sr.b);
       flaeche.className = '';
-      const bs = Math.min(104, steuerH - 22);
-      setze(boost, W - sr.r - bs - 14, oben + (steuerH - bs) / 2, bs, bs);
-      $('lenkHinweis').style.right = (sr.r + bs + 24) + 'px';
+      $('lenkHinweis').style.right = '0px';
       const ks = Math.min(76, steuerH - 40);
       setze(links, sr.l + 12, steuerH - ks - 12, ks, ks);
       setze(rechts, sr.l + 24 + ks, steuerH - ks - 12, ks, ks);
@@ -3203,9 +3384,6 @@ const PixelDuell = (() => {
         // Maus/Desktop: auf der Straße selbst ziehen
         setze(flaeche, sx, sy, sw, sh); flaeche.className = 'unsichtbar';
       }
-      const bs = klemme(rechtsB - 30, 84, 120);
-      if (rechtsB >= 100) setze(boost, sx + sw + (rechtsB - bs) / 2, Hh - sr.b - bs - 28, bs, bs);
-      else setze(boost, sx + sw - bs - 12, sy + sh - bs - 12, bs, bs);
       const aw = Math.min(260, Math.max(rechtsB - 30, 180));
       if (rechtsB >= 200) setze(aktion, sx + sw + (rechtsB - aw) / 2, Hh - sr.b - 110, aw, 80);
       else setze(aktion, sx + sw / 2 - 120, sy + sh - 100, 240, 76);
@@ -3229,14 +3407,13 @@ const PixelDuell = (() => {
     const coup = zustand === 'coup' || (zustand === 'pause' && vorPause === 'coup');
     const spiel = fahrt || coup;
     $('lenkflaeche').hidden = !spiel;
-    $('boostKnopf').hidden = !fahrt;
     $('aktionKnopf').hidden = !coup;
     $('ueberspringenKnopf').hidden = !(coup && lauf && lauf.darfUeberspringen);
     $('linksKnopf').hidden = $('rechtsKnopf').hidden = !(fahrt && Speicher.knoepfe);
     $('lenkHinweis').style.visibility = fahrt ? 'visible' : 'hidden';
     const tipp = $('tastenTipp');
     tipp.innerHTML = coup ? '<b>LEERTASTE</b><br>Impuls / Fangen<br><br><b>P</b> Pause<br><b>M</b> Ton'
-      : '<b>PFEILTASTEN</b><br>oder <b>A</b> / <b>D</b><br>lenken<br><br><b>LEERTASTE</b><br>Boost<br><br><b>P</b> Pause<br><b>M</b> Ton<br><br>Maus: auf der<br>Straße ziehen';
+      : '<b>PFEILTASTEN</b><br>oder <b>A</b> / <b>D</b><br>lenken<br><br>Pfeilfelder auf<br>der Straße geben<br><b>BOOST</b><br><br><b>P</b> Pause<br><b>M</b> Ton<br><br>Maus: auf der<br>Straße ziehen';
   }
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', () => setTimeout(layout, 120));
@@ -3244,7 +3421,7 @@ const PixelDuell = (() => {
   // ---------------------------------------------------------------
   // Eingabe verbinden
   Eingabe.verbindeFlaeche($('lenkflaeche'));
-  Eingabe.verbindeKnoepfe($('linksKnopf'), $('rechtsKnopf'), $('boostKnopf'));
+  Eingabe.verbindeKnoepfe($('linksKnopf'), $('rechtsKnopf'));
   Eingabe.st.aktiv = () => (zustand === 'fahrt' && lauf && lauf.fahrt ? 'fahrt' : zustand === 'coup' ? 'coup' : null);
   Eingabe.st.spieler = () => {
     const F = lauf && lauf.fahrt;
@@ -3366,7 +3543,7 @@ const PixelDuell = (() => {
   // ---------------------------------------------------------------
   // Auftrag starten / Coup / Fahrt
   function beendeLauf() {
-    Ton.fahrt(null);
+    Ton.fahrt(null); Ton.musik(false);
     lauf = null;
     vorPause = null;
     Grafik.partikelLeeren(); Grafik.leereBlasen();
@@ -3404,7 +3581,7 @@ const PixelDuell = (() => {
     Grafik.partikelLeeren(); Grafik.leereBlasen();
     setzeZustand('fahrt');
     melde('BEREIT …', 1.0, 'gross');
-    zeigeHinweis('lenken', touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: ← → oder A / D. Boost: Leertaste halten.', 5);
+    zeigeHinweis('lenken', touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: Pfeiltasten oder A / D.', 5);
   }
   function coupAktion() {
     if (zustand !== 'coup' || !lauf || !lauf.coup) return;
@@ -3471,7 +3648,12 @@ const PixelDuell = (() => {
     const F = lauf.fahrt, w = F.w, sp = F.sp;
     for (const e of w.ereignisse) {
       switch (e.typ) {
-        case 'boostStart': Ton.boost(); zeigeHinweis('boost2', 'Boost: schneller und mehr Punkte, aber weniger Zeit zum Reagieren.', 3.5); break;
+        case 'boostFeld':
+          Ton.boostFeld(e.auffrischen);
+          Grafik.blase('BOOST!', sp.d + 11, sp.x, '#FFD35A', 0.8, 0.9);
+          for (let i = 0; i < (bewegungRuhig.matches ? 4 : 10); i++) Grafik.weltPartikel({ d: sp.d - 2.4, x: sp.x + (Math.random() - 0.5) * 1.6, h: 0.4, vh: 0.8, vd: sp.v * 0.75, vx: (Math.random() - 0.5) * 1.5, dauer: 0.5, groesse: 0.22, farbe: i % 2 ? 'rgba(255, 211, 90, 0.8)' : 'rgba(36, 214, 205, 0.8)' });
+          zeigeHinweis('boostFeld', 'Boost! Schneller und mehr Punkte – aber weniger Zeit zum Reagieren.', 3);
+          break;
         case 'unfall': {
           Ton.unfall(e.art !== 'seite');
           Eingabe.neuBasis();
@@ -3488,12 +3670,11 @@ const PixelDuell = (() => {
         case 'ueberholt': Ton.ueberholt(e.serie); if (e.serie >= 5 && e.serie % 5 === 0) melde(`SERIE ×${e.serie}!`, 1.0); break;
         case 'knapp': Ton.knapp(); Grafik.blase(`KNAPP! +${e.punkte}`, sp.d + 3, sp.x, '#24D6CD', 0.9, 0.85); zeigeHinweis('knapp', 'Knapp vorbei gibt einen kleinen Bonus – pro Auto nur einmal.', 3); break;
         case 'marke': Ton.marke(); melde(`STRECKENMARKE ${e.nr}/${e.von - 1}\n${e.abschnitt.toUpperCase()}`, 1.8); Grafik.blase(`+${e.punkte}`, sp.d + 5, sp.x, '#24D6CD', 1.0, 1); zeigeHinweis('marke', 'Streckenmarken geben Punkte und senken den Verfolgungsdruck.', 3.5); break;
-        case 'polizeiWarnung': Ton.polizeiWarnung(); zeigeHinweis('polizei', 'Eine Streife kommt von hinten (blauer Pfeil unten). Abstand halten, Boost nutzen, sauber fahren!', 4.5, true); break;
+        case 'polizeiWarnung': Ton.polizeiWarnung(); zeigeHinweis('polizei', 'Eine Streife kommt von hinten (blauer Pfeil unten). Abstand halten, Boostfelder nutzen, sauber fahren!', 4.5, true); break;
         case 'polizeiDa': break;
         case 'abgehaengt': Ton.abgehaengt(); melde(`ABGEHÄNGT! +${e.punkte}`, 1.4); break;
-        case 'warnung': Ton.warnung(); melde('DRUCK VOLL!\nSCHÜTTLE DIE STREIFE AB!', 2.2, 'warn'); zeigeHinweis('warnung', 'Boost und Abstand senken den Druck. Bleibt er voll, endet der Auftrag.', 4, true); break;
+        case 'warnung': Ton.warnung(); melde('DRUCK VOLL!\nSCHÜTTLE DIE STREIFE AB!', 2.2, 'warn'); zeigeHinweis('warnung', 'Boostfelder und Abstand senken den Druck. Bleibt er voll, endet der Auftrag.', 4, true); break;
         case 'entkommen': Ton.entkommen(); melde('PUH – ENTKOMMEN!', 1.4); break;
-        case 'boostLeer': zeigeHinweis('boostLeer', 'Boost leer – er lädt sich langsam wieder auf, wenn du ihn loslässt.', 3); break;
         case 'ende':
           if (e.grund === 'ziel') {
             Ton.sieg(); melde('ZIEL ERREICHT!\nHALLE 7 – TOR ZU!', 3.2, 'gross');
@@ -3539,10 +3720,10 @@ const PixelDuell = (() => {
     setzeText('hudBeutel', String(ce.beutel));
     setzeBalken('zustandBalken', F.sp.zustand);
     setzeBalken('druckBalken', F.w.druck, F.w.warnung >= 0 ? 'w' : '');
-    setzeBalken('boostBalken', F.sp.boost);
-    const fuell = $('boostKnopf').querySelector('.fuell');
-    const b = Math.round(F.sp.boost);
-    if (hudAlt.boostKnopf !== b) { hudAlt.boostKnopf = b; fuell.style.transform = `scaleY(${b / 100})`; }
+    // Wirkzeit nur während des Effekts (kein Vorrat, kein Bedienelement)
+    const an = F.sp.boostAn;
+    if (hudAlt.boostSicht !== an) { hudAlt.boostSicht = an; $('boostWirkung').hidden = !an; }
+    if (an) setzeBalken('boostWirkung', F.sp.boostRest > 0 ? F.sp.boostRest / BOOST.dauer * 100 : 0);
   }
 
   // ---------------------------------------------------------------
@@ -3557,6 +3738,7 @@ const PixelDuell = (() => {
       zeilen.push([`Beutetaschen (${ce.beutel})`, ce.beutelPunkte]);
     }
     zeilen.push([`Strecke (${(Math.min(F.sp.d, F.strecke.laenge) / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} km)`, p.strecke]);
+    zeilen.push([`Boostfelder (${w.statistik.boostFelder})`, p.boostFelder]);
     zeilen.push([`Sauber überholt (${w.statistik.ueberholt}, beste Serie ${w.statistik.besteSerie})`, p.ueberholen]);
     zeilen.push([`Knapp vorbei (${w.statistik.knapp})`, p.knapp]);
     zeilen.push([`Streckenmarken (${w.markeNr})`, p.marken]);
@@ -3591,7 +3773,7 @@ const PixelDuell = (() => {
         : best.geschafft ? `BESTLEISTUNG: ${zahl(best.punkte)} (zählt nur bei geschafftem Auftrag)` : 'Bestleistung zählt, sobald du den Auftrag schaffst.';
     }
     $('ergebnisFreunde').hidden = lauf.id === 'training';
-    Ton.fahrt(null);
+    Ton.fahrt(null); Ton.musik(false);
     setzeZustand('ergebnis');
     zeichneErgebnisBild(geschafft, ce.beutel);
     zeigeFenster('fErgebnis');
@@ -3650,6 +3832,7 @@ const PixelDuell = (() => {
       }
       const e = botEingabe ? botEingabe() : Eingabe.lesen();
       lauf.fahrt.schritt(e);
+      if (lauf.fahrt.w.felder.some(f => f.status === 'offen' && f.d - lauf.fahrt.sp.d < ANSICHT.vorne)) zeigeHinweis('felder', 'Fahre über die leuchtenden Pfeilfelder für einen Temposchub!', 4, true);
       lauf.gesamtZeit += dt;
       verarbeiteFahrtEreignisse();
     }
@@ -3679,6 +3862,11 @@ const PixelDuell = (() => {
       if (F.w.anmeldungen.length) naehe = Math.max(naehe, 0.35);
       if (F.w.phase !== 'fahrt') naehe *= 0.4;
       Ton.fahrt(F.sp.v, F.sp.boostAn, naehe);
+    }
+    // Hintergrundmusik läuft im Coup und in der Fahrt durch; mehr Spannung = leise Zusatzschicht
+    if (lauf && (zustand === 'coup' || zustand === 'fahrt')) {
+      const F = lauf.fahrt;
+      Ton.musik(true, F && F.w.warnung >= 0 ? 1 : F && F.w.druck > 60 ? 0.5 : 0);
     }
     aktualisiereHud();
     zeichne();

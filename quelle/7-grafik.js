@@ -143,6 +143,7 @@ const Grafik = (() => {
     // Diffusor
     c.fillStyle = '#0D0A1A'; rr(c, -0.3, L / 2 + H * 0.84, 0.6, H * 0.14, 0.03); c.fill();
     if (o.boost) {
+      c.strokeStyle = 'rgba(255, 211, 90, 0.55)'; c.lineWidth = 0.06; rr(c, -0.6, -L / 2 - 0.06, 1.2, L + H + 0.12, 0.2); c.stroke();
       // dezente Auspuffflammen
       for (const s of [-0.18, 0.18]) {
         const f = 0.7 + 0.3 * Math.sin((o.zeit || 0) * 40 + s * 10);
@@ -540,6 +541,42 @@ const Grafik = (() => {
     c.globalAlpha = 1;
   }
 
+  // Boostfeld: leuchtende türkis-gelbe Pfeile in Fahrtrichtung, flach auf der Fahrbahn
+  function boostFeld(c, P, f, zeit) {
+    const d0 = f.d - f.laenge / 2, d1 = f.d + f.laenge / 2;
+    if (d1 < P.dMin || d0 > P.dMax) return;
+    const genutzt = f.status !== 'offen';
+    const a = Math.max(d0, P.dMin), b = Math.min(d1, P.dMax), x0 = f.x - f.breite / 2, x1 = f.x + f.breite / 2;
+    const pt = (d, x) => [P.x(d, x), P.y(d)];
+    c.save();
+    c.globalAlpha = P.alpha(d1) * (genutzt ? 0.3 : 1);
+    quad(c, pt(a, x0), pt(a, x1), pt(b, x1), pt(b, x0), 'rgba(36, 214, 205, 0.16)');
+    c.strokeStyle = 'rgba(36, 214, 205, 0.85)'; c.lineWidth = Math.max(1.2, 0.12 * P.pxm * P.s(f.d));
+    c.beginPath(); c.moveTo(...pt(a, x0)); c.lineTo(...pt(b, x0)); c.moveTo(...pt(a, x1)); c.lineTo(...pt(b, x1)); c.stroke();
+    // drei Pfeile; ein sanfter Lichtlauf nach vorne (bei „weniger Bewegung“ ruhig)
+    for (let i = 0; i < 3; i++) {
+      const dd = d0 + 0.8 + i * 2.1, spitze = dd + 1.5, dicke = 0.7, br = f.breite * 0.36;
+      if (spitze < P.dMin || dd > P.dMax) continue;
+      const hell = genutzt || ruhig ? 0.85 : 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(zeit * 5 - i * 1.4));
+      c.fillStyle = i % 2 ? `rgba(255, 211, 90, ${hell})` : `rgba(36, 214, 205, ${hell})`;
+      c.beginPath();
+      c.moveTo(...pt(dd, f.x - br)); c.lineTo(...pt(spitze, f.x)); c.lineTo(...pt(dd, f.x + br));
+      c.lineTo(...pt(dd - dicke, f.x + br)); c.lineTo(...pt(spitze - dicke, f.x)); c.lineTo(...pt(dd - dicke, f.x - br));
+      c.closePath(); c.fill();
+    }
+    c.restore();
+  }
+  // Vorankündigung: Felder knapp hinter dem Horizont als kleiner Pfeil oben in ihrer Spur
+  function feldVorschau(c, P, f, zeit) {
+    if (f.status !== 'offen' || f.d - f.laenge / 2 <= P.dMax || f.d > P.dMax + 45) return;
+    const X = P.x(P.dMax, f.x), Y = P.oben + 4, g = Math.max(5, 0.5 * P.pxm * P.s(P.dMax));
+    c.save();
+    c.globalAlpha = ruhig ? 0.85 : 0.65 + 0.25 * Math.sin(zeit * 4);
+    c.fillStyle = '#FFD35A'; c.strokeStyle = '#24D6CD'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(X, Y - g); c.lineTo(X + g, Y + g * 0.4); c.lineTo(X - g, Y + g * 0.4); c.closePath(); c.fill(); c.stroke();
+    c.restore();
+  }
+
   // Streckenmarke (Überkopf-Banner) und Zielbereich
   function marke(c, P, d, text) {
     const halb = P.halb + 1.0, a = aufrecht(P, d, -halb, 5.2), b = aufrecht(P, d, halb, 5.2);
@@ -657,6 +694,7 @@ const Grafik = (() => {
     lichtpfuetzen(c, P, strecke);
     markierungen(c, P, strecke);
     zielFlaeche(c, P, strecke.zielVon, strecke.laenge);
+    for (const f of w.felder) boostFeld(c, P, f, zeit);
     // Zeichenliste: Kulisse und Fahrzeuge, von hinten (weit vorne) nach vorne
     const liste = [];
     kulisse(P, strecke, liste);
@@ -673,6 +711,7 @@ const Grafik = (() => {
     liste.push({ d: sp.d, spieler: true, mal: cc => zeichneFahrzeug(cc, P, sp, 'spieler', { neigung: sp.neigung, boost: sp.boostAn, zeit, alpha: schutzBlink ? 0.55 : 1 }) });
     liste.sort((a, b) => b.d - a.d || (a.spieler ? 1 : -1));
     for (const e of liste) e.mal(c);
+    for (const f of w.felder) feldVorschau(c, P, f, zeit);
     zeichneWeltPartikel(c, P);
     zeichneBlasen(c, P, sp.d);
     // Vorwarnung für Streifen: Pfeil am unteren Rand in der Spur

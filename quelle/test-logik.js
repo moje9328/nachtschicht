@@ -125,19 +125,92 @@ abschnitt('Fahrt: Steuerung, Boost, Tempo');
   for (let i = 0; i < 400; i++) F.schritt({ richtung: 1 });
   ok(F.sp.x <= F.X_MAX + 1e-9, 'Straßenrand begrenzt');
 }
+abschnitt('Boostfelder');
+function feldFahrt(auftrag = 'training') {
+  const F = erstelleFahrt(auftrag, { seed: 1, startFaktor: 1 });
+  F.w.spawnUhr = 1e9; F.w.polizeiUhr = 1e9;   // kein Verkehr, keine automatischen Felder
+  for (let i = 0; i < 10; i++) F.schritt({});
+  return F;
+}
+function feldVor(F, abstand, dx = 0) {
+  const f = { id: F.w.naechsteId++, d: F.sp.d + abstand, spur: F.spurVon(F.sp.x + dx), x: F.sp.x + dx, laenge: BOOST.feldLaenge, breite: BOOST.feldBreite, status: 'offen' };
+  F.w.felder.push(f); return f;
+}
+const zaehle = (F, typ) => { const n = F.w.ereignisse.filter(e => e.typ === typ).length; F.w.ereignisse.length = 0; return n; };
 {
-  const F = erstelleFahrt('training', { seed: 1, startFaktor: 1 });
-  F.w.spawnUhr = 1e9;
-  let vMax = 0, boostMin = 100;
-  for (let i = 0; i < 120 * 6; i++) { F.schritt({ boost: true }); vMax = Math.max(vMax, F.sp.v); boostMin = Math.min(boostMin, F.sp.boost); }
-  ok(vMax <= F.w.vGrund * BOOST.faktor + 1e-6 && vMax > F.w.vGrund * 1.25, `Boost erhöht Tempo begrenzt (${vMax.toFixed(1)} von ${F.w.vGrund})`);
-  ok(boostMin === 0 && !F.sp.boostAn, 'Boost verbraucht sich und endet bei leer');
-  const b0 = F.sp.boost;
-  F.schritt({ boost: true });
-  ok(!F.sp.boostAn, `leer: kein Neustart unter Mindestladung (${BOOST.mindestStart})`);
+  // Genau einmal auslösen, weich beschleunigen, begrenzt, sanft zurück
+  const F = feldFahrt();
+  const vg = F.w.vGrund;
+  feldVor(F, 20);
+  let n = 0, vMax = 0, dvMax = 0, vAlt = F.sp.v, zeitBisVoll = null, t = 0;
+  for (let i = 0; i < 120 * 8; i++) {
+    F.schritt({}); t += DT; n += zaehle(F, 'boostFeld');
+    dvMax = Math.max(dvMax, Math.abs(F.sp.v - vAlt) / DT); vAlt = F.sp.v; vMax = Math.max(vMax, F.sp.v);
+    if (zeitBisVoll == null && n && F.sp.v >= vg * BOOST.faktor - 0.05) zeitBisVoll = t;
+  }
+  ok(n === 1 && F.w.statistik.boostFelder === 1, `Feld löst genau einmal aus (${n})`);
+  ok(Math.abs(vMax - vg * BOOST.faktor) < 0.05, `+30 % Tempo (${(vMax / vg).toFixed(3)} × Grundtempo)`);
+  ok(dvMax <= SPIELER.boostBeschl + 0.01 && dvMax <= Math.max(SPIELER.boostBeschl, SPIELER.bremsen, SPIELER.beschl) + 0.01, `weiche Beschleunigung, keine Sprünge (max ${dvMax.toFixed(1)} m/s²)`);
+  ok(Math.abs(F.sp.v - vg) < 0.05 && !F.sp.boostAn, 'danach sanft zurück auf Grundtempo');
+  ok(F.w.punkte.boostFelder === PUNKTE.boostFeld, 'Boostfeld gibt kleinen Punktbonus');
+}
+{
+  // Seitliches Vorbeifahren löst nicht aus (Wagenmitte neben dem Feld), auch nicht nachträglich
+  const F = feldFahrt();
+  const f = feldVor(F, 20, BOOST.feldBreite / 2 + 0.25);
+  let n = 0;
+  for (let i = 0; i < 120 * 2; i++) { F.schritt({}); n += zaehle(F, 'boostFeld'); }
+  ok(n === 0 && f.status === 'verpasst' && !F.sp.boostAn, 'Vorbeifahren knapp neben dem Feld: kein Boost');
+  // nur ein Leuchten berühren genügt nicht: Rad über dem Rand, Mitte daneben
+  const G = feldFahrt();
+  feldVor(G, 20, BOOST.feldBreite / 2 + SPIELER.trefferBreite / 2 - 0.2);
+  for (let i = 0; i < 120 * 2; i++) { G.schritt({}); n += zaehle(G, 'boostFeld'); }
+  ok(n === 0, 'Berührung nur am Rand reicht nicht');
+}
+{
+  // Mehrere Felder: nicht stapeln, nur Dauer auffrischen
+  const F = feldFahrt();
+  const vg = F.w.vGrund;
+  feldVor(F, 15); feldVor(F, 15 + vg * 1.5); feldVor(F, 15 + vg * 2.6);
+  let vMax = 0, auffr = 0, ausl = 0, restNachZweitem = null;
+  for (let i = 0; i < 120 * 10; i++) {
+    F.schritt({});
+    for (const e of F.w.ereignisse) if (e.typ === 'boostFeld') { ausl++; if (e.auffrischen) { auffr++; if (restNachZweitem == null) restNachZweitem = F.sp.boostRest; } }
+    F.w.ereignisse.length = 0; vMax = Math.max(vMax, F.sp.v);
+  }
+  ok(ausl === 3 && auffr === 2, `drei Felder, zwei Auffrischungen (${ausl}/${auffr})`);
+  ok(Math.abs(restNachZweitem - BOOST.dauer) < DT * 1.5, `Auffrischen setzt die volle Dauer, addiert nicht (${restNachZweitem && restNachZweitem.toFixed(2)} s)`);
+  ok(vMax <= vg * BOOST.faktor + 1e-6, `Tempo stapelt sich nicht (${(vMax / vg).toFixed(3)} ×)`);
+}
+{
+  // Höchsttempo: Felder werden nicht übersprungen (Überfahrt über die ganze Schrittstrecke)
+  const F = feldFahrt();
+  F.sp.v = 120; F.w.vGrund;
+  feldVor(F, 30);
+  let n = 0;
+  for (let i = 0; i < 60; i++) { F.sp.v = 120; F.schritt({}); n += zaehle(F, 'boostFeld'); }
+  ok(n === 1, `bei 120 m/s (1 m pro Schritt) ausgelöst (${n})`);
+  // Felder wirken nur auf den Spieler und sind keine Hindernisse
+  const G = feldFahrt();
+  const f = feldVor(G, 40, 3.6);
+  const a = { id: 777, typ: 'taxi', spur: f.spur, x: f.x, d: f.d - 10, v: 20, vSoll: 20, stoss: 0, laenge: 4.6, breite: 1.85, wechsel: null, wechselSperre: 99, vorbei: false, getroffen: false, knappMin: 99, knappFertig: false, kontaktBis: -1, wackel: 0, farbe: 0, geboren: 0 };
+  G.w.autos.push(a);
+  for (let i = 0; i < 120 * 2; i++) G.schritt({});
+  ok(Math.abs(a.v - 20) < 1e-9 && f.status !== 'genutzt', 'Verkehr fährt unbeeinflusst über ein Feld und löst es nicht aus');
+  ok(G.sp.zustand === 100, 'Felder sind keine Stoßkörper');
+}
+{
+  // Ende setzt den Boost zurück; eingefrorene Simulation (Pause) verbraucht keine Wirkzeit
+  const F = feldFahrt();
+  feldVor(F, 10);
+  for (let i = 0; i < 60; i++) F.schritt({});
+  const rest = F.sp.boostRest;
+  ok(rest > 0 && rest < BOOST.dauer, 'Boost läuft');
+  // Pause = keine Schritte: Wirkzeit bleibt unverändert
+  ok(F.sp.boostRest === rest, 'ohne Simulationsschritt (Pause) läuft keine Wirkzeit ab');
+  F.sp.d = F.strecke.zielVon - 0.1;
   for (let i = 0; i < 120 * 4; i++) F.schritt({});
-  ok(F.sp.boost > b0 + 25 && F.sp.boost < 50, `lädt langsam wieder auf (${F.sp.boost.toFixed(1)} nach 4 s)`);
-  ok(Math.abs(F.sp.v - F.w.vGrund) < 0.1, 'nach dem Boost zurück auf Grundtempo (kein endloses Steigern)');
+  ok(F.sp.boostRest === 0 && !F.sp.boostAn, 'Spielende setzt den Boost sauber zurück');
 }
 
 abschnitt('Fahrt: Kollisionen');
@@ -154,20 +227,22 @@ function autoVor(F, abstand, dx = 0, typ = 'taxi', v = 20) {
   return a;
 }
 {
-  // Maximaltempo: auch mit Boost und sehr hohem Tempo kein Durchtunneln
+  // Maximaltempo: auch mit Boosttempo und sehr hohem Tempo kein Durchtunneln
   for (const v of [F0 => F0.w.vGrund * BOOST.faktor, () => 90]) {
     const F = testFahrt();
     F.sp.v = v(F);
     const a = autoVor(F, 25, 0, 'kugel', 5);
     let unfaelle = 0, n = 0;
-    while (F.sp.d < a.d + 10 && n++ < 600) { F.schritt({ boost: true }); if (v(F) === 90) F.sp.v = 90; unfaelle += F.w.ereignisse.filter(e => e.typ === 'unfall').length; F.w.ereignisse.length = 0; if (unfaelle) break; }
+    while (F.sp.d < a.d + 10 && n++ < 600) { F.sp.v = v(F); F.schritt({}); if (v(F) === 90) F.sp.v = 90; unfaelle += F.w.ereignisse.filter(e => e.typ === 'unfall').length; F.w.ereignisse.length = 0; if (unfaelle) break; }
     ok(unfaelle === 1, `Kollision bei ${v(F).toFixed(0)} m/s erkannt (${unfaelle})`);
   }
   // Boost macht nicht unverwundbar
   const F = testFahrt();
-  autoVor(F, 12, 0, 'taxi', 10);
-  for (let i = 0; i < 120; i++) F.schritt({ boost: true });
-  ok(F.sp.zustand < 100, 'Unfall auch während Boost kostet Zustand');
+  F.w.felder.push({ id: 5555, d: F.sp.d + 6, spur: 0, x: F.sp.x, laenge: BOOST.feldLaenge, breite: BOOST.feldBreite, status: 'offen' });
+  autoVor(F, 40, 0, 'taxi', 10);
+  let boostBeimUnfall = false;
+  for (let i = 0; i < 240; i++) { F.schritt({}); if (F.w.ereignisse.some(e => e.typ === 'unfall')) boostBeimUnfall = F.sp.boostAn; F.w.ereignisse.length = 0; }
+  ok(F.sp.zustand < 100 && boostBeimUnfall, 'Unfall auch während Boost kostet Zustand');
 }
 {
   // Dauerkontakt: nur einmal Schaden; Schutzphase
@@ -284,11 +359,12 @@ const SEEDS = SCHNELL ? 6 : 16;
 const zusammenfassung = {};
 for (const id of ['training', ...AUFTRAG_LISTE]) {
   let waende = 0, proben = 0, zuNah = 0, blinkKurz = 0, wechsel = 0, ueberlapp = 0, polOhneWarnung = 0, polVorne = 0, polZuSchnell = 0, polImBild = 0, geschafft = 0, polizeiAnzahl = 0, tempoZuHoch = 0;
-  let warnBisDa = [];
+  let warnBisDa = [], felderNah = 0, felderUnterAuto = 0, felderVorZiel = 0, felderAbstand = 0, felderGesamt = 0, ersteNichtEigene = 0;
   for (let seed = 1; seed <= SEEDS; seed++) {
     const F = erstelleFahrt(id, { seed });
     const bot = Testfahrer.erstelle(F);
-    const gesehen = new Set(), blinkStart = new Map();
+    const gesehen = new Set(), blinkStart = new Map(), feldGesehen = new Set();
+    let letztesFeldD = -1e9;
     let letzteWarnung = -1;
     const P = AUFTRAEGE[id].polizei;
     let n = 0;
@@ -301,6 +377,15 @@ for (const id of ['training', ...AUFTRAG_LISTE]) {
         if (e.typ === 'polizeiDa') { polizeiAnzahl++; if (letzteWarnung < 0) polOhneWarnung++; else warnBisDa.push(w.zeit - letzteWarnung); }
       }
       w.ereignisse.length = 0;
+      for (const f of w.felder) if (!feldGesehen.has(f.id)) {
+        feldGesehen.add(f.id); felderGesamt++;
+        if (f.d - sp.d < ANSICHT.vorne + 8) felderNah++;
+        if (w.autos.some(a => Math.abs(a.x - f.x) < (a.breite + f.breite) / 2 && Math.abs(a.d - f.d) < (a.laenge + f.laenge) / 2)) felderUnterAuto++;
+        if (f.d > w.strecke.zielVon - BOOST.zielFrei) felderVorZiel++;
+        if (f.d - letztesFeldD < BOOST.abstand[0] - 1) felderAbstand++;
+        if (feldGesehen.size === 1 && f.spur !== F.spurVon(sp.x)) ersteNichtEigene++;
+        letztesFeldD = f.d;
+      }
       for (const a of w.autos) {
         if (!gesehen.has(a.id)) {
           gesehen.add(a.id);
@@ -326,6 +411,10 @@ for (const id of ['training', ...AUFTRAG_LISTE]) {
   ok(zuNah === 0, `${id}: kein Auto taucht im Sichtbereich auf (${zuNah})`);
   ok(blinkKurz === 0, `${id}: jeder Spurwechsel ≥ 1,4 s vorher angekündigt (${wechsel} Wechsel)`);
   ok(tempoZuHoch === 0, `${id}: Tempo nie über Boost-Grenze`);
+  ok(felderGesamt >= SEEDS * 3, `${id}: Boostfelder kommen vor (${felderGesamt})`);
+  ok(felderNah === 0 && felderUnterAuto === 0, `${id}: Felder entstehen außerhalb des Bildes und nicht unter Autos (${felderNah}/${felderUnterAuto})`);
+  ok(felderVorZiel === 0 && felderAbstand === 0, `${id}: keine Boostketten, keine Felder kurz vor dem Ziel`);
+  ok(ersteNichtEigene === 0, `${id}: erstes Feld liegt zur Einführung auf der eigenen Spur`);
   if (AUFTRAEGE[id].polizei) {
     ok(polizeiAnzahl > 0, `${id}: Streifen kommen vor (${polizeiAnzahl})`);
     ok(polOhneWarnung === 0 && Math.min(...warnBisDa) >= 2.2, `${id}: jede Streife mit Vorwarnung ≥ 2,2 s (min ${Math.min(...warnBisDa).toFixed(2)} s)`);
@@ -342,12 +431,26 @@ for (const id of AUFTRAG_LISTE) {
   let ok2 = 0; const n = SCHNELL ? 4 : 8;
   for (let seed = 101; seed < 101 + n; seed++) {
     const F = erstelleFahrt(id, { seed });
-    const bot = Testfahrer.erstelle(F, { boost: 'warnung', reaktion: 0.3, zittern: 0.8, horizont: 2.2, seed });
+    const bot = Testfahrer.erstelle(F, { reaktion: 0.3, zittern: 0.8, horizont: 2.2, seed });
     let k = 0;
     while (F.w.phase !== 'fertig' && k++ < 120 * 400) F.schritt(bot());
     if (F.w.grund === 'ziel') ok2++;
   }
   ok(ok2 >= Math.ceil(n * 0.75), `${id}: Bot mit Reaktionszeit 0,3 s und Zittern schafft ${ok2}/${n}`);
+}
+
+abschnitt('Boostfelder sind freiwillig');
+for (const id of AUFTRAG_LISTE) {
+  let ok2 = 0; const n = SCHNELL ? 3 : 6;
+  for (let seed = 301; seed < 301 + n; seed++) {
+    const F = erstelleFahrt(id, { seed });
+    F.w.naechstesFeld = 1e9;   // ganz ohne Boostfelder
+    const bot = Testfahrer.erstelle(F, { felder: false });
+    let k = 0;
+    while (F.w.phase !== 'fertig' && k++ < 120 * 400) F.schritt(bot());
+    if (F.w.grund === 'ziel' && F.w.statistik.boostFelder === 0) ok2++;
+  }
+  ok(ok2 >= n - 1, `${id}: ganz ohne Boostfelder schaffbar (${ok2}/${n})`);
 }
 
 abschnitt('Reproduzierbarkeit');

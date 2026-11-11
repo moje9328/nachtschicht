@@ -5,7 +5,7 @@
 //
 // Fairness: Jedes neue Verkehrsauto und jeder Spurwechsel wird vorher
 // durchgerechnet (pfadFrei): Mit der tatsächlichen Geschwindigkeit des
-// Spielers (Grundtempo und Boost) und seiner begrenzten Seitengeschwindigkeit
+// Spielers (Grundtempo und Boostfeld-Tempo) und seiner begrenzten Seitengeschwindigkeit
 // muss es von seiner Position aus einen Weg an allen Autos vorbei geben, bis
 // er alle passiert hat. Sonst entsteht das Auto nicht bzw. der Wechsel nicht.
 // ===================================================================
@@ -22,21 +22,21 @@ function erstelleFahrt(auftragId, optionen = {}) {
 
   const sp = {
     d: 0, x: spurX(Math.floor((SP - 1) / 2), SP) + (SP % 2 ? 0 : SPUR / 2), v: vGrund * (optionen.startFaktor || 0.55),
-    vx: 0, neigung: 0, zustand: 100, boost: BOOST.max, boostAn: false, boostPause: 0, schutz: 0,
+    vx: 0, neigung: 0, zustand: 100, boostRest: 0, boostAnteil: 0, boostAn: false, schutz: 0,
     planke: 0, laenge: SPIELER.laenge, breite: SPIELER.breite,
   };
   if (SP % 2 === 0) sp.x = spurX(SP / 2, SP);   // gerade Spurzahl: rechte Mittelspur
 
   const w = {
     auftragId, A, strecke, sp, zeit: 0, phase: 'fahrt', grund: '', phaseZeit: 0,
-    autos: [], polizei: [], anmeldungen: [],
+    autos: [], polizei: [], anmeldungen: [], felder: [], naechstesFeld: BOOST.ersteBei,
     druck: 0, warnung: -1, maxDruck: 0,
-    punkte: { strecke: 0, ueberholen: 0, knapp: 0, marken: 0, abschluss: 0, zustand: 0, abgehaengt: 0 },
-    statistik: { ueberholt: 0, knapp: 0, unfaelle: 0, polizeiKontakt: 0, abgehaengt: 0, boostZeit: 0, maxTempo: 0, schaden: 0, warnungen: 0, besteSerie: 0 },
+    punkte: { strecke: 0, boostFelder: 0, ueberholen: 0, knapp: 0, marken: 0, abschluss: 0, zustand: 0, abgehaengt: 0 },
+    statistik: { ueberholt: 0, knapp: 0, unfaelle: 0, polizeiKontakt: 0, abgehaengt: 0, boostZeit: 0, boostFelder: 0, maxTempo: 0, schaden: 0, warnungen: 0, besteSerie: 0 },
     serie: 0, letzterUnfall: -99, markeNr: 0,
     ereignisse: [], naechsteId: 1,
     spawnUhr: 0, polizeiUhr: P ? P.erste : 1e9,
-    pruefung: { versuche: 0, abgelehnt: 0, wechselAbgelehnt: 0, rechnungen: 0 },
+    pruefung: { versuche: 0, abgelehnt: 0, wechselAbgelehnt: 0, rechnungen: 0, feldVerschoben: 0 },
     vGrund, HALB, SP,
   };
   const sende = (typ, daten = {}) => w.ereignisse.push({ typ, zeit: w.zeit, ...daten });
@@ -142,7 +142,86 @@ function erstelleFahrt(auftragId, optionen = {}) {
     for (const vs of VORSPRUENGE) {
       if (vorherFrei(vGrund, true, vs) && !pfadFrei(extra, vGrund, true, ersatz, vs, true)) return false;
     }
+    // Verkehr und Boostfelder gemeinsam: Ein Weg über ein kommendes Feld (mit dem höheren
+    // Tempo danach) darf durch neuen Verkehr nicht verbaut werden.
+    for (const f of w.felder) {
+      if (f.status !== 'offen' || f.d < sp.d || f.d > sp.d + 220) continue;
+      if (!merk.has('feld' + f.id)) merk.set('feld' + f.id, feldWegFrei(f, [], null, true));
+      if (merk.get('feld' + f.id) && !feldWegFrei(f, extra, ersatz, true)) return false;
+    }
     return true;
+  }
+
+  // ---------------------------------------------------------------
+  // Weg über ein Boostfeld: bis zum Feld Grundtempo, auf dem Feld muss die Mitte des Autos
+  // über dem Feld liegen, danach volle Boostdauer mit +30 % und Abklingen.
+  function feldWegFrei(f, extra = [], ersatz = null, alleStarts = false) {
+    const liste = [];
+    for (const a of w.autos) liste.push(ersatz && ersatz.has(a.id) ? ersatz.get(a.id) : a);
+    for (const a of extra) liste.push(a);
+    const v0 = Math.max(vGrund, sp.v), vB = vGrund * BOOST.faktor;
+    const tF = Math.max(0, (f.d - sp.d) / v0);
+    const tB = BOOST.dauer + BOOST.abklingen * 0.5;
+    const weg = t => (t <= tF ? v0 * t : v0 * tF + vB * Math.min(t - tF, tB) + vGrund * Math.max(0, t - tF - tB));
+    let T = tF + 0.5;
+    for (const a of liste) {
+      const vor = a.d + a.laenge / 2 + 12 - sp.d;
+      if (vor > 0) T = Math.max(T, vor / Math.max(0.8, vGrund - a.v));
+    }
+    T = Math.min(T, 30);
+    const PL = PL_B + 3, PW = PW_B + 0.35;
+    const dt = 0.1, schritte = Math.ceil(T / dt);
+    const seitZellen = Math.max(1, Math.floor(SPIELER.seitMax * 0.7 * dt / ZELLE));
+    let reich = new Uint8Array(ZELLEN), neu = new Uint8Array(ZELLEN);
+    if (alleStarts) reich.fill(1);
+    else { const j0 = Math.round((klemme(sp.x, X_MIN, X_MAX) - X_MIN) / ZELLE); for (let j = j0 - 1; j <= j0 + 1; j++) if (j >= 0 && j < ZELLEN) reich[j] = 1; }
+    const block = new Uint8Array(ZELLEN);
+    const kTor = Math.max(1, Math.round(tF / dt));
+    for (let k = 1; k <= schritte; k++) {
+      const t = k * dt, pd = sp.d + weg(t);
+      block.fill(0);
+      for (const a of liste) {
+        if (Math.abs(a.d + a.v * t - pd) >= (a.laenge + PL) / 2) continue;
+        const ax = autoX(a, t), r = (a.breite + PW) / 2;
+        const j1 = Math.max(0, Math.ceil((ax - r - X_MIN) / ZELLE)), j2 = Math.min(ZELLEN - 1, Math.floor((ax + r - X_MIN) / ZELLE));
+        for (let j = j1; j <= j2; j++) block[j] = 1;
+      }
+      if (k === kTor) for (let j = 0; j < ZELLEN; j++) if (Math.abs(X_MIN + j * ZELLE - f.x) > f.breite / 2 - 0.2) block[j] = 1;   // „Tor“: über das Feld
+      let irgendwas = false, summe = 0;
+      for (let j = 0; j < Math.min(ZELLEN, seitZellen); j++) summe += reich[j];
+      for (let j = 0; j < ZELLEN; j++) {
+        if (j + seitZellen < ZELLEN) summe += reich[j + seitZellen];
+        if (j - seitZellen - 1 >= 0) summe -= reich[j - seitZellen - 1];
+        const r = !block[j] && summe > 0 ? 1 : 0;
+        neu[j] = r; if (r) irgendwas = true;
+      }
+      if (!irgendwas) return false;
+      const tmp = reich; reich = neu; neu = tmp;
+    }
+    return true;
+  }
+
+  // Boostfelder platzieren: außerhalb des Bildes, auf einer Spur ohne Auto darüber, nur wenn
+  // der Weg über das Feld und danach mit Boosttempo frei ist. Erstes Feld leicht (eigene Spur).
+  function planeFelder() {
+    if (sp.d + ANSICHT.vorne + 30 < w.naechstesFeld) return;
+    const d = Math.max(w.naechstesFeld, sp.d + ANSICHT.vorne + 12);
+    if (d > strecke.zielVon - BOOST.zielFrei) { w.naechstesFeld = 1e9; return; }
+    const erstes = w.felder.length === 0;
+    const eigene = spurVon(sp.x);
+    let spuren = [...Array(SP).keys()].sort(() => rnd() - 0.5);
+    if (erstes) spuren = [eigene];
+    else if (rnd() < 0.35) spuren = [eigene, ...spuren.filter(s => s !== eigene)];
+    for (const s of spuren) {
+      const f = { id: w.naechsteId++, d, spur: s, x: spurX(s, SP), laenge: BOOST.feldLaenge, breite: BOOST.feldBreite, status: 'offen' };
+      const darueber = w.autos.concat(w.polizei).some(a => Math.abs(a.x - f.x) < (a.breite + f.breite) / 2 && Math.abs(a.d - f.d) < (a.laenge + f.laenge) / 2 + 12);
+      if (darueber) continue;
+      if (!feldWegFrei(f, [], null, false) || !feldWegFrei(f, [], null, true)) continue;
+      w.felder.push(f);
+      w.naechstesFeld = d + rnd.zwischen(BOOST.abstand[0], BOOST.abstand[1]);
+      return;
+    }
+    w.naechstesFeld = d + 25; w.pruefung.feldVerschoben++;   // gerade kein fairer Platz: etwas später versuchen
   }
 
   // ---------------------------------------------------------------
@@ -285,6 +364,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
     }
     // Autos verlassen das Bild nach hinten bzw. sind zu weit vorne
     w.autos = w.autos.filter(a => a.d > sp.d - ANSICHT.hinten - 30 && a.d < sp.d + 400);
+    if (w.felder.length > 6) w.felder = w.felder.filter(f => f.d > sp.d - ANSICHT.hinten - 20);
   }
 
   // ---------------------------------------------------------------
@@ -403,22 +483,18 @@ function erstelleFahrt(auftragId, optionen = {}) {
   // Spieler
   function aktualisiereSpieler(e) {
     const imZiel = w.phase !== 'fahrt';
-    // Boost
-    const willBoost = !imZiel && e.boost;
-    if (willBoost && (sp.boostAn || sp.boost >= BOOST.mindestStart) && sp.boost > 0) {
-      if (!sp.boostAn) sende('boostStart');
-      sp.boostAn = true; sp.boostPause = BOOST.nachlauf;
-      sp.boost = Math.max(0, sp.boost - BOOST.verbrauch * DT);
-      w.statistik.boostZeit += DT;
-      if (sp.boost <= 0) sende('boostLeer');
-    } else {
-      if (sp.boostAn) sende('boostEnde');
-      sp.boostAn = false;
-      sp.boostPause -= DT;
-      if (sp.boostPause <= 0) sp.boost = Math.min(BOOST.max, sp.boost + BOOST.laden * DT);
-    }
-    // Längs: automatisch auf Grundtempo, Boost darüber; im Ziel ausrollen
-    const vZiel = imZiel ? (w.phase === 'ziel' ? 0 : 0) : sp.boostAn ? vGrund * BOOST.faktor : vGrund;
+    // Boost nur durch Boostfelder: weich an, volle Dauer, sanft zurück
+    if (!imZiel && sp.boostRest > 0) {
+      sp.boostRest = Math.max(0, sp.boostRest - DT);
+      sp.boostAnteil = Math.min(1, sp.boostAnteil + DT / BOOST.anstieg);
+    } else sp.boostAnteil = Math.max(0, sp.boostAnteil - DT / BOOST.abklingen);
+    if (imZiel) sp.boostRest = 0;
+    const warAn = sp.boostAn;
+    sp.boostAn = sp.boostAnteil > 0.02;
+    if (warAn && !sp.boostAn) sende('boostEnde');
+    if (sp.boostAn) w.statistik.boostZeit += DT;
+    // Längs: automatisch auf Grundtempo, mit Boostfeld bis +30 %; im Ziel ausrollen
+    const vZiel = imZiel ? 0 : vGrund * (1 + (BOOST.faktor - 1) * glatt(sp.boostAnteil));
     if (sp.v < vZiel) sp.v = Math.min(vZiel, sp.v + (sp.boostAn ? SPIELER.boostBeschl : SPIELER.beschl) * DT);
     else sp.v = Math.max(vZiel, sp.v - (imZiel ? 9 : SPIELER.bremsen) * DT);
     w.statistik.maxTempo = Math.max(w.statistik.maxTempo, sp.v);
@@ -438,7 +514,24 @@ function erstelleFahrt(auftragId, optionen = {}) {
     }
     if (sp.planke > 0) sp.planke -= DT;
     sp.neigung += ((sp.vx / SPIELER.seitMax) * SPIELER.neigungMax - sp.neigung) * Math.min(1, DT * 14);
+    const dAlt = sp.d;
     sp.d += sp.v * DT;
+    // Boostfelder: Überfahrt in Weltkoordinaten, über die ganze in diesem Schritt gefahrene Strecke
+    // (kein Überspringen bei hohem Tempo). Die Wagenmitte muss über dem Feld liegen.
+    for (const f of w.felder) {
+      if (f.status !== 'offen') continue;
+      const hinten = dAlt - SPIELER.trefferLaenge / 2, vorne = sp.d + SPIELER.trefferLaenge / 2;
+      if (vorne >= f.d - f.laenge / 2 && hinten <= f.d + f.laenge / 2) {
+        if (!imZiel && Math.abs(sp.x - f.x) <= f.breite / 2) {
+          f.status = 'genutzt';
+          const auffrischen = sp.boostRest > 0 || sp.boostAnteil > 0.02;
+          sp.boostRest = BOOST.dauer;            // auffrischen, nicht addieren
+          w.statistik.boostFelder++;
+          w.punkte.boostFelder += PUNKTE.boostFeld;
+          sende('boostFeld', { auffrischen, punkte: PUNKTE.boostFeld, id: f.id });
+        }
+      } else if (hinten > f.d + f.laenge / 2) f.status = 'verpasst';
+    }
     if (sp.schutz > 0) sp.schutz = Math.max(0, sp.schutz - DT);
   }
 
@@ -580,7 +673,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       w.punkte.abschluss = PUNKTE.abschluss * (A.nr || 0.4);
       w.punkte.zustand = Math.round(sp.zustand) * PUNKTE.proZustand;
     }
-    sp.boostAn = false;
+    sp.boostRest = 0;
     sende('ende', { grund });
   }
 
@@ -597,7 +690,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
       w.punkte.strecke += sp.v * DT * PUNKTE.proMeter * (sp.boostAn ? PUNKTE.boostFaktor : 1);
       druckUndWarnung();
       w.spawnUhr -= DT;
-      if (w.spawnUhr <= 0) { w.spawnUhr = 0.3; versucheSpawn(); }
+      if (w.spawnUhr <= 0) { w.spawnUhr = 0.3; versucheSpawn(); planeFelder(); }
       planePolizei(DT);
       while (w.markeNr < strecke.marken.length && sp.d >= strecke.marken[w.markeNr]) {
         w.markeNr++; w.punkte.marken += PUNKTE.marke;
@@ -614,7 +707,7 @@ function erstelleFahrt(auftragId, optionen = {}) {
 
   function summe() {
     const p = w.punkte;
-    return Math.round(p.strecke + p.ueberholen + p.knapp + p.marken + p.abschluss + p.zustand + p.abgehaengt);
+    return Math.round(p.strecke + p.boostFelder + p.ueberholen + p.knapp + p.marken + p.abschluss + p.zustand + p.abgehaengt);
   }
 
   return {

@@ -9,7 +9,7 @@
 
 const Eingabe = (() => {
   const st = {
-    links: new Set(), rechts: new Set(), boost: new Set(),
+    links: new Set(), rechts: new Set(),
     zug: null,                 // { id, startX, x0, mPerPx, letzteX }
     aktiv: () => null,         // liefert 'fahrt' | 'coup' | null
     spieler: () => ({ x: 0, min: -5, max: 5, breite: 12 }),
@@ -19,7 +19,7 @@ const Eingabe = (() => {
   };
 
   function leeren() {
-    st.links.clear(); st.rechts.clear(); st.boost.clear();
+    st.links.clear(); st.rechts.clear();
     st.zug = null;
   }
 
@@ -27,7 +27,7 @@ const Eingabe = (() => {
     const r = (st.rechts.size ? 1 : 0) - (st.links.size ? 1 : 0);
     let ziel = null;
     if (st.zug && st.zug.ziel != null) ziel = st.zug.ziel;
-    return { ziel: r ? null : ziel, richtung: r, boost: st.boost.size > 0 };
+    return { ziel: r ? null : ziel, richtung: r };
   }
 
   // Bewegung des Fingers → Ziel in Metern. Am Straßenrand wird der Bezug nachgeführt,
@@ -68,7 +68,7 @@ const Eingabe = (() => {
     el.addEventListener('lostpointercapture', ende);
   }
 
-  // Halte-Knöpfe (links, rechts, Boost): eigene Pointer, gehen nie an die Fläche weiter
+  // Halte-Knöpfe (links, rechts): eigene Pointer, gehen nie an die Fläche weiter
   function verbindeKnopf(el, menge) {
     const weg = e => { menge.delete(e.pointerId); el.classList.remove('gedrueckt'); };
     el.addEventListener('pointerdown', e => {
@@ -104,16 +104,16 @@ const Eingabe = (() => {
     }
     if (LINKS.includes(e.code)) { e.preventDefault(); st.links.add(e.code); }
     else if (RECHTS.includes(e.code)) { e.preventDefault(); st.rechts.add(e.code); }
-    else if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); st.boost.add(e.code); }
+    else if (e.code === 'Space') e.preventDefault();   // in der Fahrt ohne Funktion, aber kein Seitenscrollen
   });
   window.addEventListener('keyup', e => {
-    st.links.delete(e.code); st.rechts.delete(e.code); st.boost.delete(e.code);
+    st.links.delete(e.code); st.rechts.delete(e.code);
   });
   // Fokusverlust: alle gedrückten Tasten und Finger vergessen
   window.addEventListener('blur', leeren);
 
   return {
     st, lesen, leeren, neuBasis, verbindeFlaeche,
-    verbindeKnoepfe(links, rechts, boost) { verbindeKnopf(links, st.links); verbindeKnopf(rechts, st.rechts); verbindeKnopf(boost, st.boost); },
+    verbindeKnoepfe(links, rechts) { verbindeKnopf(links, st.links); verbindeKnopf(rechts, st.rechts); },
   };
 })();

@@ -2,7 +2,7 @@
 # Baut aus den Teilen in diesem Ordner die fertige index.html. Aufruf: python3 quelle/baue.py
 import pathlib
 q = pathlib.Path(__file__).parent
-TEILE = ['1-einstellungen.js', '3-coup.js', '3-fahrt.js', '5-speicher.js', '6-ton.js', '7-grafik.js',
+TEILE = ['1-einstellungen.js', '3-coup.js', '3-fahrt.js', '5-speicher.js', '6-musik.js', '6-ton.js', '7-grafik.js',
          '8-eingabe.js', 'duell.js', '9-app.js']
 kopf = (q / 'kopf.html').read_text()
 spiel = '\n'.join((q / n).read_text() for n in TEILE)

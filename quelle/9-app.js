@@ -23,7 +23,7 @@
   let zustand = 'menue';              // menue | coup | fahrt | pause | ergebnis
   let vorPause = null;
   let lauf = null;                    // aktueller Auftrag
-  let menueStrecke = baueStrecke(AUFTRAEGE.containerkai);
+  let menueStrecke = baueStrecke(AUFTRAEGE.endlos);
   let touchGesehen = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   const zahl = n => Math.round(n).toLocaleString('de-DE');
 
@@ -98,7 +98,7 @@
     const ue = $('ueberspringenKnopf');
     Object.assign(ue.style, { left: (sx + sw - 150) + 'px', top: (sy + 8) + 'px' });
     $('meldung').style.top = (sy + sh * 0.2) + 'px';
-    $('hinweis').style.top = (sy + sh * 0.07) + 'px';
+    $('hinweis').style.top = (sy + 6) + 'px';
     links.hidden = rechts.hidden = !knoepfe;
     $('lenkHinweis').hidden = !(lay.modus === 'unten' || flaeche.className === 'seite');
     aktualisiereSteuerung();
@@ -110,7 +110,7 @@
     const spiel = fahrt || coup;
     $('lenkflaeche').hidden = !spiel;
     $('aktionKnopf').hidden = !coup;
-    $('ueberspringenKnopf').hidden = !(coup && lauf && lauf.darfUeberspringen);
+    $('ueberspringenKnopf').hidden = !(coup && lauf);
     $('linksKnopf').hidden = $('rechtsKnopf').hidden = !(fahrt && Speicher.knoepfe);
     $('lenkHinweis').style.visibility = fahrt ? 'visible' : 'hidden';
     const tipp = $('tastenTipp');
@@ -142,9 +142,9 @@
   cv.addEventListener('pointerdown', e => { Ton.wecke(); if (e.pointerType === 'touch' && !touchGesehen) { touchGesehen = true; layout(); } if (zustand === 'coup') { e.preventDefault(); coupAktion(); } });
   $('aktionKnopf').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); Ton.wecke(); if (zustand === 'coup') coupAktion(); });
   $('aktionKnopf').addEventListener('click', e => e.preventDefault());
-  $('ueberspringenKnopf').addEventListener('click', e => { e.stopPropagation(); if (zustand === 'coup' && lauf && lauf.darfUeberspringen) { Ton.klick(); starteFahrt(true); } });
+  $('ueberspringenKnopf').addEventListener('click', e => { e.stopPropagation(); if (zustand === 'coup' && lauf) { Ton.klick(); starteFahrt(true); } });
   $('pauseKnopf').addEventListener('click', () => { if (zustand === 'coup' || zustand === 'fahrt') pause(false); });
-  $('neustartSchnell').addEventListener('click', () => { if (lauf && (zustand === 'fahrt' || zustand === 'coup')) { Ton.klick(); starteAuftrag(lauf.id, lauf.ueberspringen); } });
+  $('neustartSchnell').addEventListener('click', () => { if (lauf && (zustand === 'fahrt' || zustand === 'coup')) { Ton.klick(); starteAuftrag(lauf.id, false); } });
   document.addEventListener('pointerdown', () => Ton.wecke(), { capture: true });
   document.addEventListener('keydown', () => Ton.wecke(), { capture: true });
 
@@ -156,12 +156,12 @@
   }
   function schalteTon() { Speicher.ton = !Speicher.ton; Ton.setze(Speicher.ton); if (Speicher.ton) Ton.klick(); zeigeTon(); }
   document.querySelectorAll('.js-ton').forEach(k => k.addEventListener('click', schalteTon));
-  for (const [id, name] of [['pegelEffekte', 'effekte'], ['pegelFahrt', 'fahrt'], ['pegelMusik', 'musik']]) {
+  for (const [id, name] of [['pegelEffekte', 'effekte'], ['pegelMusik', 'musik']]) {
     const el = $(id), aus = $(id + 'Wert');
     el.value = Math.round(Speicher[name] * 100); aus.textContent = `${el.value} %`;
     Ton.pegel(name, Speicher[name]);
     el.addEventListener('input', () => { Speicher[name] = el.value / 100; aus.textContent = `${el.value} %`; Ton.pegel(name, Speicher[name]); });
-    el.addEventListener('change', () => { if (name === 'musik') Ton.start(); else Ton.klick(); });
+    el.addEventListener('change', () => { if (name !== 'musik') Ton.klick(); });
   }
   Ton.setze(Speicher.ton); zeigeTon();
 
@@ -188,18 +188,21 @@
   }
   document.querySelectorAll('.js-zurueck').forEach(b => b.addEventListener('click', () => { Ton.klick(); zeigeFenster(fensterZurueck); }));
   $('auftragWahlKnopf').addEventListener('click', () => { Ton.klick(); zeigeAuftraege(); });
-  $('trainingKnopf').addEventListener('click', () => { Ton.klick(); starteAuftrag('training', true); });
+  $('spielenKnopf').addEventListener('click', () => { Ton.klick(); starteAuftrag('endlos', false); });
   $('soundKnopf').addEventListener('click', () => { Ton.klick(); fensterZurueck = 'fStart'; zeigeFenster('fSound'); });
   $('steuerungKnopf').addEventListener('click', () => { Ton.klick(); fensterZurueck = 'fStart'; zeigeFenster('fSteuerung'); });
   $('pauseSteuerungKnopf').addEventListener('click', () => { Ton.klick(); fensterZurueck = 'fPause'; zeigeFenster('fSteuerung'); });
   $('weiterKnopf').addEventListener('click', () => weiter());
-  $('neustartKnopf').addEventListener('click', () => { Ton.klick(); if (lauf) starteAuftrag(lauf.id, lauf.ueberspringen); });
-  $('pauseMenueKnopf').addEventListener('click', () => { Ton.klick(); beendeLauf(); zeigeAuftraege(); });
-  $('nochmalKnopf').addEventListener('click', () => { Ton.klick(); if (lauf) starteAuftrag(lauf.id, lauf.id === 'training' ? true : lauf.ueberspringenGewaehlt); });
-  $('ergebnisAuftraegeKnopf').addEventListener('click', () => { Ton.klick(); beendeLauf(); zeigeAuftraege(); });
+  $('neustartKnopf').addEventListener('click', () => { Ton.klick(); if (lauf) starteAuftrag(lauf.id, lauf.mitCoup); });
+  $('pauseMenueKnopf').addEventListener('click', () => { Ton.klick(); zeigeStart(); });
+  $('nochmalKnopf').addEventListener('click', () => { Ton.klick(); if (lauf) starteAuftrag(lauf.id, lauf.mitCoup); });
+  $('ergebnisAuftraegeKnopf').addEventListener('click', () => { Ton.klick(); if (lauf && lauf.id !== 'endlos') { beendeLauf(); zeigeAuftraege(); } else zeigeStart(); });
 
   function zeigeStart() {
     beendeLauf();
+    const r = Speicher.beste('endlos');
+    $('startRekord').hidden = !r.versuche;
+    $('startRekord').textContent = `Neon-Endlos-Rekord: ${zahl(r.punkte)} Punkte · ${(r.strecke / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} km`;
     fensterZurueck = 'fStart';
     zeigeFenster('fStart');
     zeichneTitel();
@@ -212,18 +215,17 @@
       const A = AUFTRAEGE[id], b = Speicher.beste(id), km = (baueStrecke(A).laenge / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 });
       const k = document.createElement('button');
       k.type = 'button'; k.className = 'auftrag'; k.dataset.auftrag = id; k.style.setProperty('--g', A.farbe);
-      k.innerHTML = `<span class="nr">${A.nr}</span><h3>${A.name.toUpperCase()}</h3><p>${A.kurz} · ${km} km · ${A.spuren} Spuren</p>`
-        + `<p>${A.text}</p><p class="best">${b.geschafft ? `Bestleistung: ${zahl(b.punkte)} Punkte · ${b.beutel} Taschen · ${b.zeit.toLocaleString('de-DE')} s` : b.versuche ? 'Noch nicht geschafft' : 'Neu'}</p>`;
+      const alt = Speicher.alt(id);
+      k.innerHTML = `<span class="nr">${A.nr}</span><h3>${A.name.toUpperCase()}</h3><p>${A.kurz} · ${km} km</p><p>${A.text}</p>`
+        + `<p class="best">${b.geschafft ? `Bestleistung: ${zahl(b.punkte)} Punkte · ${b.zeit.toLocaleString('de-DE')} s` : b.versuche ? 'Noch nicht geschafft' : 'Neu'}${alt && alt.geschafft ? ` · vor der Überarbeitung: ${zahl(alt.punkte)}` : ''}</p>`;
       k.title = A.text;
-      k.addEventListener('click', () => { Ton.klick(); starteAuftrag(id, $('ueberspringenWahl').checked && Speicher.darfUeberspringen(id)); });
+      k.addEventListener('click', () => { Ton.klick(); starteAuftrag(id, $('coupWahl').checked); });
       liste.appendChild(k);
     }
-    const irgendeiner = AUFTRAG_LISTE.some(id => Speicher.darfUeberspringen(id));
-    $('ueberspringenZeile').hidden = !irgendeiner;
-    $('ueberspringenWahl').checked = irgendeiner && Speicher.coupUeberspringen;
+    $('coupWahl').checked = Speicher.coupEinstieg;
     zeigeFenster('fAuftraege');
   }
-  $('ueberspringenWahl').addEventListener('change', e => { Speicher.coupUeberspringen = e.target.checked; });
+  $('coupWahl').addEventListener('change', e => { Speicher.coupEinstieg = e.target.checked; });
 
   // ---------------------------------------------------------------
   // Meldungen und Hinweise (zeitgesteuert über den Game Loop, keine setTimeout)
@@ -233,6 +235,10 @@
   function zeigeHinweis(schluessel, text, dauer = 4.5, immer = false) {
     if (!immer && (!lauf || !lauf.A.erklaeren)) return;
     if (hinweis.gezeigt.has(schluessel)) return;
+    // keine Erklärtexte in dichten Verkehrssituationen (später erneut versuchen)
+    const F = lauf && lauf.fahrt;
+    if (F && F.sp.d > 150 && F.w.autos.some(a => a.d > F.sp.d && a.d - F.sp.d < ANSICHT.vorne * 0.7)) return;
+    dauer = Math.min(dauer, 3);
     hinweis.gezeigt.add(schluessel);
     $('hinweis').textContent = text; $('hinweis').hidden = false; hinweis.rest = dauer;
   }
@@ -245,7 +251,6 @@
   // ---------------------------------------------------------------
   // Auftrag starten / Coup / Fahrt
   function beendeLauf() {
-    Ton.fahrt(null); Ton.musik(false);
     lauf = null;
     vorPause = null;
     Grafik.partikelLeeren(); Grafik.leereBlasen();
@@ -253,37 +258,36 @@
     setzeZustand('menue');
   }
   function neuerSeed() { return FESTER_SEED != null ? FESTER_SEED : (Math.random() * 4294967296) >>> 0; }
-  function starteAuftrag(id, ueberspringen) {
+  function starteAuftrag(id, mitCoup) {
     beendeLauf();
     const A = AUFTRAEGE[id];
-    const darf = id !== 'training' && Speicher.darfUeberspringen(id);
-    lauf = {
-      id, A, seed: neuerSeed(), coup: null, fahrt: null, startUhr: 0, ruetteln: 0,
-      ueberspringen: id === 'training' || (ueberspringen && darf), ueberspringenGewaehlt: !!ueberspringen,
-      darfUeberspringen: darf, coupErgebnis: null, coupText: null, gesamtZeit: 0, letzteSirene: 0,
-    };
-    if (id !== 'training') Speicher.auftrag = id;
-    document.body.dataset.modus = id === 'training' ? 'training' : 'auftrag';
+    const coup = id !== 'endlos' && !!mitCoup;
+    lauf = { id, A, seed: neuerSeed(), coup: null, fahrt: null, startUhr: 0, ruetteln: 0, mitCoup: coup, coupErgebnis: null, gesamtZeit: 0 };
+    Speicher.auftrag = id === 'endlos' ? Speicher.auftrag : id;
+    document.body.dataset.modus = id === 'endlos' ? 'endlos' : 'auftrag';
     zeigeFenster(null);
-    if (lauf.ueberspringen) { starteFahrt(id !== 'training'); return; }
+    if (!coup) { starteFahrt(false); return; }
     lauf.coup = erstelleCoup(A.coup, lauf.seed ^ 0x5eed);
     setzeZustand('coup');
-    melde(`AUFTRAG ${A.nr}\n${A.name.toUpperCase()}`, 1.6, 'gross');
+    melde(`MISSION ${A.nr}\n${A.name.toUpperCase()}`, 1.6, 'gross');
     zeigeHinweis('coup', touchGesehen ? 'Tippe, wenn der Zeiger im hellen Feld steht. Drei Treffer laden den Impulsschlüssel.' : 'Leertaste, wenn der Zeiger im hellen Feld steht. Drei Treffer laden den Impulsschlüssel.', 4, true);
-    Ton.start();
   }
   function starteFahrt(uebersprungen) {
     const C = lauf.coup && lauf.coup.c;
-    lauf.coupErgebnis = uebersprungen || !C
-      ? { uebersprungen: true, timing: 0, beutel: lauf.id === 'training' ? 0 : 3, beutelPunkte: lauf.id === 'training' ? 0 : 3 * PUNKTE.beutel, perfekte: 0, gute: 0, daneben: 0 }
-      : { uebersprungen: false, timing: Math.max(0, C.trefferPunkte - C.abzug), beutel: C.gefangen, beutelPunkte: C.gefangen * PUNKTE.beutel, perfekte: C.perfekte, gute: C.gute, daneben: C.daneben };
+    lauf.coupErgebnis = !C
+      ? { gespielt: false, uebersprungen: false, timing: 0, beutel: 0, beutelPunkte: 0, perfekte: 0, gute: 0, daneben: 0 }
+      : uebersprungen
+        ? { gespielt: false, uebersprungen: true, timing: 0, beutel: 0, beutelPunkte: 0, perfekte: 0, gute: 0, daneben: 0 }
+        : { gespielt: true, uebersprungen: false, timing: Math.max(0, C.trefferPunkte - C.abzug), beutel: C.gefangen, beutelPunkte: C.gefangen * PUNKTE.beutel, perfekte: C.perfekte, gute: C.gute, daneben: C.daneben };
     lauf.coup = null;
     lauf.fahrt = erstelleFahrt(lauf.id, { seed: lauf.seed });
-    lauf.startUhr = 1.4;
+    lauf.startUhr = lauf.id === 'endlos' ? 0.6 : 1.1;
     Grafik.partikelLeeren(); Grafik.leereBlasen();
+    $('hudBeuteFeld').classList.toggle('ausgeblendet', !lauf.coupErgebnis.gespielt);
+    $('hudRestTitel').textContent = lauf.id === 'endlos' ? 'STRECKE' : 'ZIEL';
     setzeZustand('fahrt');
-    melde('BEREIT …', 1.0, 'gross');
-    zeigeHinweis('lenken', touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: Pfeiltasten oder A / D.', 5);
+    melde(lauf.id === 'endlos' ? 'NEON-ENDLOS' : `MISSION ${lauf.A.nr}\n${lauf.A.name.toUpperCase()}`, 1.0, 'gross');
+    zeigeHinweis('lenken', touchGesehen ? `Lenken: Finger ${lay.modus === 'unten' ? 'unten' : 'links'} auf die Steuerfläche legen und seitlich ziehen.` : 'Lenken: Pfeiltasten oder A / D.', 3.5, true);
   }
   function coupAktion() {
     if (zustand !== 'coup' || !lauf || !lauf.coup) return;
@@ -369,8 +373,9 @@
         case 'beruehrung': Ton.beruehrung(); break;
         case 'planke': Ton.planke(); for (let i = 0; i < 5; i++) Grafik.weltPartikel({ art: 'funke', d: sp.d, x: sp.x + e.seite * 1.0, h: 0.3, vh: 1.5, g: 8, vd: sp.v * 0.8, vx: (Math.random() - 0.5) * 2, dauer: 0.35, groesse: 0.14, farbe: '#FFD35A' }); break;
         case 'rempler': Ton.rempler(); Grafik.blase('BONK', e.d, e.x, '#B5CBE0', 0.7, 0.8); break;
-        case 'ueberholt': Ton.ueberholt(e.serie); if (e.serie >= 5 && e.serie % 5 === 0) melde(`SERIE ×${e.serie}!`, 1.0); break;
-        case 'knapp': Ton.knapp(); Grafik.blase(`KNAPP! +${e.punkte}`, sp.d + 3, sp.x, '#24D6CD', 0.9, 0.85); zeigeHinweis('knapp', 'Knapp vorbei gibt einen kleinen Bonus – pro Auto nur einmal.', 3); break;
+        case 'ueberholt': Ton.ueberholt(e.serie); break;
+        case 'serie': Ton.serie(); Grafik.blase('SAUBERE SERIE!', sp.d + 12, 0, '#24D6CD', 1.1, 1); Grafik.blase(`+${e.punkte}`, sp.d + 8, 0, '#24D6CD', 1.0, 0.8); break;
+        case 'knapp': Ton.knapp(); Grafik.blase('KNAPP VORBEI!', sp.d + 7, sp.x, '#FF4FD8', 0.9, 0.8); zeigeHinweis('knapp', 'Knapp vorbei gibt einen kleinen Bonus – pro Auto nur einmal.', 3); break;
         case 'marke': Ton.marke(); melde(`STRECKENMARKE ${e.nr}/${e.von - 1}\n${e.abschnitt.toUpperCase()}`, 1.8); Grafik.blase(`+${e.punkte}`, sp.d + 5, sp.x, '#24D6CD', 1.0, 1); zeigeHinweis('marke', 'Streckenmarken geben Punkte und senken den Verfolgungsdruck.', 3.5); break;
         case 'polizeiWarnung': Ton.polizeiWarnung(); zeigeHinweis('polizei', 'Eine Streife kommt von hinten (blauer Pfeil unten). Abstand halten, Boostfelder nutzen, sauber fahren!', 4.5, true); break;
         case 'polizeiDa': break;
@@ -418,10 +423,14 @@
     const ce = lauf.coupErgebnis;
     setzeText('hudPunkte', zahl(F.summe() + ce.timing + ce.beutelPunkte));
     const rest = F.rest();
-    setzeText('hudRest', rest > 950 ? `${(rest / 1000).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km` : `${Math.max(0, Math.round(rest / 10) * 10)} m`);
+    const anzeigeM = lauf.id === 'endlos' ? F.sp.d : rest;
+    setzeText('hudRest', anzeigeM > 950 ? `${(anzeigeM / 1000).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km` : `${Math.max(0, Math.round(anzeigeM / 10) * 10)} m`);
     setzeText('hudBeutel', String(ce.beutel));
     setzeBalken('zustandBalken', F.sp.zustand);
-    setzeBalken('druckBalken', F.w.druck, F.w.warnung >= 0 ? 'w' : '');
+    // Verfolgungsdruck nur, wenn er relevant ist
+    const druckSicht = F.w.polizei.length > 0 || F.w.anmeldungen.length > 0 || F.w.druck > 0.5;
+    if (hudAlt.druckSicht !== druckSicht) { hudAlt.druckSicht = druckSicht; $('druckBalken').classList.toggle('ausgeblendet', !druckSicht); }
+        setzeBalken('druckBalken', F.w.druck, F.w.warnung >= 0 ? 'w' : '');
     // Wirkzeit nur während des Effekts (kein Vorrat, kein Bedienelement)
     const an = F.sp.boostAn;
     if (hudAlt.boostSicht !== an) { hudAlt.boostSicht = an; $('boostWirkung').hidden = !an; }
@@ -432,29 +441,34 @@
   // Ergebnis
   function zeigeErgebnis() {
     const F = lauf.fahrt, w = F.w, ce = lauf.coupErgebnis;
+    const endlos = lauf.id === 'endlos';
     const geschafft = w.grund === 'ziel';
     const p = w.punkte;
     const zeilen = [];
-    if (lauf.id !== 'training') {
-      zeilen.push([ce.uebersprungen ? 'Coup (übersprungen)' : `Coup-Timing (${ce.perfekte}× perfekt, ${ce.gute}× gut, ${ce.daneben}× daneben)`, ce.timing]);
+    if (ce.gespielt) {
+      zeilen.push([`Coup-Timing (${ce.perfekte}× perfekt, ${ce.gute}× gut, ${ce.daneben}× daneben)`, ce.timing]);
       zeilen.push([`Beutetaschen (${ce.beutel})`, ce.beutelPunkte]);
     }
-    zeilen.push([`Strecke (${(Math.min(F.sp.d, F.strecke.laenge) / 1000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} km)`, p.strecke]);
-    zeilen.push([`Boostfelder (${w.statistik.boostFelder})`, p.boostFelder]);
+    const km = Math.min(F.sp.d, F.strecke.laenge) / 1000;
+    zeilen.push([`Strecke (${km.toLocaleString('de-DE', { maximumFractionDigits: 2 })} km)`, p.strecke]);
     zeilen.push([`Sauber überholt (${w.statistik.ueberholt}, beste Serie ${w.statistik.besteSerie})`, p.ueberholen]);
+    zeilen.push([`Saubere Serien (${w.statistik.serien})`, p.serien]);
     zeilen.push([`Knapp vorbei (${w.statistik.knapp})`, p.knapp]);
+    zeilen.push([`Boostfelder (${w.statistik.boostFelder})`, p.boostFelder]);
     zeilen.push([`Streckenmarken (${w.markeNr})`, p.marken]);
-    if (lauf.id !== 'training') zeilen.push([`Streifen abgehängt (${w.statistik.abgehaengt})`, p.abgehaengt]);
-    if (geschafft) { zeilen.push(['Abschluss', p.abschluss]); zeilen.push([`Fahrzeugzustand (${Math.round(F.sp.zustand)} %)`, p.zustand]); }
+    if (w.statistik.abgehaengt) zeilen.push([`Streifen abgehängt (${w.statistik.abgehaengt})`, p.abgehaengt]);
+    if (geschafft) { zeilen.push(['Mission geschafft', p.abschluss]); zeilen.push([`Fahrzeugzustand (${Math.round(F.sp.zustand)} %)`, p.zustand]); }
     const gesamt = Math.round(F.summe() + ce.timing + ce.beutelPunkte);
-    const erg = { geschafft, punkte: gesamt, beutel: ce.beutel, zeit: w.zeit };
-    const neu = Speicher.trageEin(lauf.id, erg);
+    const vorher = Speicher.beste(lauf.id);
+    const alterRekord = { punkte: vorher.punkte, strecke: vorher.strecke };
+    const neu = Speicher.trageEin(lauf.id, { geschafft, punkte: gesamt, beutel: ce.beutel, zeit: w.zeit, strecke: F.sp.d });
     const best = Speicher.beste(lauf.id);
-    $('fErgebnisTitel').textContent = lauf.id === 'training' ? (geschafft ? 'Training geschafft!' : 'Training beendet') : geschafft ? 'Auftrag geschafft!' : 'Auftrag gescheitert';
+    $('fErgebnisTitel').textContent = endlos ? (neu.punkte && alterRekord.punkte > 0 ? 'Neuer Rekord!' : 'Lauf beendet') : geschafft ? 'Mission geschafft!' : 'Mission gescheitert';
     const grund = $('ergebnisGrund');
-    grund.className = 'ergebnisgrund' + (geschafft ? '' : ' schlecht');
+    grund.className = 'ergebnisgrund' + (geschafft || endlos ? '' : ' schlecht');
     grund.textContent = geschafft
-      ? `${lauf.A.name}: Halle 7 erreicht, Tor zu – Feierabend für die Hafenbande. Zeit: ${w.zeit.toLocaleString('de-DE', { maximumFractionDigits: 1 })} s.`
+      ? `${lauf.A.name}: Halle 7 erreicht, Tor zu – Feierabend. Zeit: ${w.zeit.toLocaleString('de-DE', { maximumFractionDigits: 1 })} s.`
+      : endlos ? `${km.toLocaleString('de-DE', { maximumFractionDigits: 2 })} km Neon-Endlos. ` + (w.grund === 'wrack' ? 'Der Kombi qualmt – Zustand leer.' : 'Die Streife hat aufgeschlossen.')
       : w.grund === 'wrack' ? 'Grund: Der Fahrzeugzustand ist leer – der Kombi qualmt und rollt aus.'
       : 'Grund: Der Verfolgungsdruck blieb zu lange voll – die Streife hat aufgeschlossen.';
     const dl = $('ergebnisZahlen'); dl.textContent = '';
@@ -467,15 +481,14 @@
     const gdt = document.createElement('dt'); gdt.textContent = 'Gesamt'; const gdd = document.createElement('dd'); gdd.textContent = zahl(gesamt);
     g.append(gdt, gdd); dl.appendChild(g);
     const bestEl = $('ergebnisBest');
-    if (lauf.id === 'training') { bestEl.hidden = true; }
-    else {
-      bestEl.hidden = false;
-      bestEl.textContent = geschafft
-        ? (neu.punkte ? `NEUE BESTLEISTUNG: ${zahl(best.punkte)}` : `BESTLEISTUNG: ${zahl(best.punkte)}`)
-        : best.geschafft ? `BESTLEISTUNG: ${zahl(best.punkte)} (zählt nur bei geschafftem Auftrag)` : 'Bestleistung zählt, sobald du den Auftrag schaffst.';
-    }
-    $('ergebnisFreunde').hidden = lauf.id === 'training';
-    Ton.fahrt(null); Ton.musik(false);
+    bestEl.hidden = false;
+    if (endlos) bestEl.textContent = `${neu.punkte ? 'NEUER REKORD' : 'REKORD'}: ${zahl(best.punkte)} · ${(best.strecke / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} KM`;
+    else bestEl.textContent = geschafft
+      ? (neu.punkte ? `NEUE BESTLEISTUNG: ${zahl(best.punkte)}` : `BESTLEISTUNG: ${zahl(best.punkte)}`)
+      : best.geschafft ? `BESTLEISTUNG: ${zahl(best.punkte)} (zählt nur bei geschaffter Mission)` : 'Bestleistung zählt, sobald du die Mission schaffst.';
+    $('nochmalKnopf').textContent = endlos ? 'Sofort nochmal' : 'Noch einmal';
+    $('ergebnisAuftraegeKnopf').textContent = endlos ? 'Menü' : 'Missionen';
+    Ton.musikDucken(2.2);
     setzeZustand('ergebnis');
     zeichneErgebnisBild(geschafft, ce.beutel);
     zeigeFenster('fErgebnis');
@@ -496,15 +509,15 @@
 
   // Freunde herausfordern: Bestleistung je Auftrag
   const duell = PixelDuell.erstelle({
-    spiel: 'Nachtschicht: Hafenbande',
+    spiel: 'Nachtschicht: Hafenflucht',
     adresse: 'https://moje9328.github.io/nachtschicht/',
     schluessel: 'pixelhafen.nachtschicht.freunde',
     stand: st => ({ punkte: Speicher.beste(st).punkte }),
-    stufen: { containerkai: 'Containerkai', neonviertel: 'Neonviertel', nachthafen: 'Nachthafen' },
-    stufe: () => (lauf && AUFTRAG_LISTE.includes(lauf.id) ? lauf.id : Speicher.auftrag),
-    beiStufe: st => { Speicher.auftrag = st; },
+    stufen: { endlos: 'Neon-Endlos', containerkai: 'Containerkai', neonviertel: 'Neonviertel', nachthafen: 'Nachthafen' },
+    stufe: () => (lauf ? lauf.id : 'endlos'),
+    beiStufe: () => {},
     einheit: 'Punkte', levelWort: '', wasText: 'deine Bestleistung',
-    erklaerung: 'Gezählt wird deine beste Punktzahl im gewählten Auftrag.',
+    erklaerung: 'Gezählt wird deine beste Punktzahl im gewählten Modus.',
   });
   if (duell.offen) { $('startDuell').textContent = duell.startText(); $('startDuell').hidden = false; }
   $('freundeKnopf').addEventListener('click', () => { Ton.klick(); duell.oeffne(); });
@@ -556,20 +569,9 @@
     let n = 0;
     while (akku >= DT && n < 12 * TEMPO + 12) { schritt(DT); akku -= DT; n++; }
     if (n >= 12 * TEMPO + 12) akku = 0;
-    // Motor und Sirene folgen dem Tempo
-    if (lauf && lauf.fahrt && zustand === 'fahrt') {
-      const F = lauf.fahrt;
-      let naehe = 0;
-      for (const p of F.w.polizei) naehe = Math.max(naehe, 1 - Math.min(1, Math.abs(p.d - F.sp.d) / 45));
-      if (F.w.anmeldungen.length) naehe = Math.max(naehe, 0.35);
-      if (F.w.phase !== 'fahrt') naehe *= 0.4;
-      Ton.fahrt(F.sp.v, F.sp.boostAn, naehe);
-    }
-    // Hintergrundmusik läuft im Coup und in der Fahrt durch; mehr Spannung = leise Zusatzschicht
-    if (lauf && (zustand === 'coup' || zustand === 'fahrt')) {
-      const F = lauf.fahrt;
-      Ton.musik(true, F && F.w.warnung >= 0 ? 1 : F && F.w.druck > 60 ? 0.5 : 0);
-    }
+    // Musik: eine einzige Schleife, läuft nach der ersten Nutzeraktion durch (Menü, Fahrt, Ergebnis);
+    // in der Pause steht der Audiokontext still. Kein Motorgeräusch.
+    if (Speicher.ton) Ton.musik(true);
     aktualisiereHud();
     zeichne();
   }

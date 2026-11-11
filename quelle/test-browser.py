@@ -46,6 +46,13 @@ async def neue_seite(b, w, h, touch=False, dpr=1, init=None, bewegung=None, quer
     await pg.add_script_tag(content=BOT)
     return ctx, pg
 
+
+# Zählt Audioquellen ohne geplantes Ende (Dauerschleifen wie ein Motorgeräusch)
+AUDIO_ZAEHLER = """(() => { window.__audio = { gestartet: 0, ohneEnde: 0 }; const P = window.AudioScheduledSourceNode && AudioScheduledSourceNode.prototype; if (!P) return;
+  const st = P.start, sp = P.stop;
+  P.start = function (...a) { window.__audio.gestartet++; this.__offen = true; window.__audio.ohneEnde++; const q = this; queueMicrotask(() => {}); return st.apply(this, a); };
+  P.stop = function (...a) { if (this.__offen) { this.__offen = false; window.__audio.ohneEnde--; } return sp.apply(this, a); }; })();"""
+
 N = 'window.__nacht'
 F = f'{N}.fahrt()'
 
@@ -89,7 +96,7 @@ async def main():
         print('\n# Start und Menü (Handy)')
         ctx, pg = await neue_seite(b, 390, 844, touch=True, dpr=2, query='?seed=11')
         ok(await wert(pg, f"{N}.zustand()") == 'menue', 'startet im Menü')
-        for t in ['Auftrag wählen', 'Training', 'Sound', 'Steuerung']:
+        for t in ['Spielen', 'Missionen', 'Sound', 'Steuerung']:
             ok(await pg.locator('#fStart button', has_text=t).count() >= 1, f'Startknopf „{t}“ vorhanden')
         ok('NACHTSCHICHT' in (await pg.inner_text('#fStartTitel')), 'Titel sichtbar')
         ok(await wert(pg, 'document.documentElement.scrollWidth <= innerWidth'), 'kein waagrechtes Scrollen')
@@ -103,14 +110,16 @@ async def main():
         ok(await wert(pg, f'{N}.speicher.ton') is False and (await wert(pg, f'{N}.ton()'))['an'] is False, 'Ton-aus-Schalter wirkt')
         await pg.tap('#fSound .js-ton')
         await pg.tap('#fSound .js-zurueck')
+        ok(await pg.locator('#pegelFahrt').count() == 0 and await pg.locator('#pegelMusik').count() == 1, 'nur noch Regler für Musik und Effekte (kein Motor-Regler)')
         await pg.tap('#auftragWahlKnopf')
-        ok(await pg.locator('.auftrag').count() == 3, 'drei Aufträge wählbar')
-        ok(await wert(pg, '!document.querySelector("#ueberspringenZeile").hidden') is False, 'Coup überspringen erst nach geschafftem Auftrag')
+        ok(await pg.locator('.auftrag').count() == 3, 'drei Missionen wählbar')
+        ok(not await wert(pg, 'document.querySelector("#coupWahl").checked'), 'Coup-Einstieg ist optional und standardmäßig aus')
+        await pg.tap('#coupWahl')
         await pg.screenshot(path=str(BILDER / f'{MOTOR}-handy-auftraege.png'))
         await pg.tap('[data-auftrag="containerkai"]')
         ok(await wert(pg, f'{N}.eingabeSt.zuege') == zuege0, 'Menüklicks lösen keine Lenkung aus')
         ok(await wert(pg, f"{N}.zustand()") == 'coup', 'Auftrag startet mit dem Coup')
-        ok(await wert(pg, '!document.querySelector("#ueberspringenKnopf").hidden') is False, 'beim ersten Mal kein Überspringen-Knopf')
+        ok(not await wert(pg, 'document.querySelector("#ueberspringenKnopf").hidden'), 'Coup jederzeit überspringbar')
 
         # ---------------------------------------------------------------
         print('\n# Coup: schlechte und gute Treffer mit echten Tipps')
@@ -231,14 +240,13 @@ async def main():
 
         # ---------------------------------------------------------------
         print('\n# Tastatur, Maus, Kollision bei Boosttempo (Desktop)')
-        ctx, pg = await neue_seite(b, 1440, 900, query='?seed=12')
+        ctx, pg = await neue_seite(b, 1440, 900, query='?seed=12', init=AUDIO_ZAEHLER)
         lay = await wert(pg, f'{N}.lay()')
         ok(abs(lay['sicht']['w'] / lay['sicht']['h'] - 0.6) < 0.01 and lay['sicht']['w'] < 700, f'Desktop: zentrierte Sicht mit festem Seitenverhältnis ({lay["sicht"]["w"]:.0f}×{lay["sicht"]["h"]:.0f})')
-        await pg.click('#trainingKnopf')
-        ok(await wert(pg, f'{N}.lauf().id') == 'training' and await wert(pg, f"{N}.zustand()") == 'fahrt', 'Training startet direkt ohne Coup')
+        await pg.click('#spielenKnopf')
+        ok(await wert(pg, f'{N}.lauf().id') == 'endlos' and await wert(pg, f"{N}.zustand()") == 'fahrt', '„Spielen“ startet sofort Neon-Endlos, ohne Coup')
         await warte_fahrt(pg)
-        await pg.evaluate(f'{F}.w.autos.length = 0; {F}.w.spawnUhr = 1e9')
-        ok(await wert(pg, f'{F}.w.polizei.length + {F}.w.anmeldungen.length') == 0 and await wert(pg, f'{F}.w.polizeiUhr') > 1e8, 'Training ohne Polizei')
+        await pg.evaluate(f'{F}.w.autos.length = 0; {F}.w.felder.length = 0; {F}.w.spawnUhr = 1e9; {F}.w.polizeiUhr = 1e9')
         x0 = await wert(pg, f'{F}.sp.x')
         await pg.keyboard.down('ArrowLeft'); await pg.wait_for_timeout(250); await pg.keyboard.up('ArrowLeft')
         await pg.wait_for_timeout(300)
@@ -267,11 +275,11 @@ async def main():
         ok(not await wert(pg, f'{F}.sp.boostAn'), 'keine alte Boost-Taste mehr belegt')
         # Boostfeld nehmen, dann bei Boosttempo auffahren: genau ein Schaden, kein Durchfahren
         await pg.evaluate(f"{F}.w.felder.push({{ id: 4343, d: {F}.sp.d + 25, spur: 0, x: {F}.sp.x, laenge: 7, breite: 2.6, status: 'offen' }})")
-        ok(await warte(pg, f'{F}.sp.v > {F}.w.vGrund * 1.28', 5000), 'Boostfeld bringt +30 % Tempo')
+        ok(await warte(pg, f'{F}.sp.v > {F}.w.vGrund * 1.23', 5000), 'Boostfeld bringt +25 % Tempo')
         await pg.evaluate(f'''(() => {{ const f = {F}; const sp = f.sp; f.w.autos.push({{ id: 9999, typ: 'laster', spur: f.spurVon(sp.x), x: sp.x, d: sp.d + 30, v: 10, vSoll: 10, stoss: 0, laenge: 11.5, breite: 2.5, wechsel: null, wechselSperre: 99, vorbei: false, getroffen: false, knappMin: 99, knappFertig: false, kontaktBis: -1, wackel: 0, farbe: 0, geboren: 0 }}); }})()''')
         await warte(pg, f'{F}.sp.zustand < 100', 4000)
         await pg.wait_for_timeout(600)
-        ok(await wert(pg, f'{F}.sp.zustand') == 80, f'Auffahren bei Boosttempo: genau ein Schaden ({await wert(pg, f"{F}.sp.zustand")})')
+        ok(await wert(pg, f'{F}.sp.zustand') == 82, f'Auffahren bei Boosttempo: genau ein Schaden ({await wert(pg, f"{F}.sp.zustand")})')
         ok(await wert(pg, f'{F}.w.autos.find(a => a.id === 9999).d - {F}.sp.d') > 0, 'kein Durchfahren des Lasters bei Höchsttempo')
         await pg.screenshot(path=str(BILDER / f'{MOTOR}-desktop-unfall.png'))
         # Leertaste auf fokussiertem Menüknopf: setzt fort, boostet aber nicht
@@ -283,10 +291,23 @@ async def main():
         await pg.keyboard.press('KeyM')
         ok(await wert(pg, f'{N}.speicher.ton') is False, 'M schaltet den Ton aus')
         await pg.keyboard.press('KeyM')
-        # Neustart-Knopf im Training
+        # Neustart-Knopf im Endlosmodus; Game over → sofortiger Neustart; nur eine Musikschleife
         await warte_fahrt(pg); await pg.wait_for_timeout(300)
         await pg.click('#neustartSchnell')
-        ok(await wert(pg, f'{F}.w.zeit') == 0 and await wert(pg, f'{F}.sp.d') == 0, 'Training frei neu startbar')
+        ok(await wert(pg, f'{F}.w.zeit') == 0 and await wert(pg, f'{F}.sp.d') == 0, 'Endlos per Knopf sofort neu startbar')
+        await warte_fahrt(pg); await pg.wait_for_timeout(400)
+        await pg.evaluate(f'{F}.sp.zustand = 1; {F}.w.autos.push({{ id: 8888, typ: "taxi", spur: 0, x: {F}.sp.x, d: {F}.sp.d + 9, v: 5, vSoll: 5, stoss: 0, laenge: 4.6, breite: 1.85, wechsel: null, wechselSperre: 99, vorbei: false, getroffen: false, knappMin: 99, knappFertig: false, kontaktBis: -1, wackel: 0, farbe: 0, geboren: 0 }})')
+        ok(await warte(pg, f"{N}.zustand() === 'ergebnis'", 8000), 'leerer Zustand beendet den Lauf')
+        ok(await pg.inner_text('#fErgebnisTitel') in ('Lauf beendet', 'Neuer Rekord!') and await pg.inner_text('#nochmalKnopf') == 'Sofort nochmal', 'Endlos-Ergebnis mit „Sofort nochmal“')
+        ok(await wert(pg, 'document.activeElement && document.activeElement.id') == 'nochmalKnopf', '„Sofort nochmal“ hat den Fokus (Enter/Leertaste)')
+        await pg.keyboard.press('Enter')
+        ok(await wert(pg, f"{N}.zustand()") == 'fahrt' and await wert(pg, f'{F}.w.zeit') < 1, 'Enter startet sofort einen neuen Lauf')
+        gesp = json.loads(await wert(pg, "localStorage.getItem('pixelhafen.nachtschicht')"))
+        ok(gesp['v'] == 2 and gesp['beste']['endlos']['versuche'] >= 1, 'Endlos-Rekord versioniert gespeichert (Version 2)')
+        await pg.wait_for_timeout(500)
+        ton = await wert(pg, f'{N}.ton()')
+        ok(ton['musik'] and ton['musikStarts'] == 1, f'nach mehreren Neustarts genau eine Musikschleife ({ton["musikStarts"]} Start)')
+        ok(await wert(pg, 'window.__audio.ohneEnde') == 0 and await wert(pg, 'window.__audio.gestartet') > 50, f'keine dauerhafte Audioquelle (Motor/Sirene): {await wert(pg, "window.__audio.ohneEnde")} ohne geplantes Ende von {await wert(pg, "window.__audio.gestartet")}')
         ok(not pg.fehler, f'keine Fehler in der Konsole: {pg.fehler[:3]}')
         await ctx.close()
 
@@ -303,33 +324,37 @@ async def main():
             await pg.evaluate(f'{N}.erstelleBot({{}})')
             fertig = await warte(pg, f"{N}.zustand() === 'ergebnis'", 120000)
             titel = await pg.inner_text('#fErgebnisTitel') if fertig else '–'
-            ok(fertig and titel == 'Auftrag geschafft!', f'{auftrag}: Auftrag geschafft ({titel})')
+            ok(fertig and titel == 'Mission geschafft!', f'{auftrag}: Mission geschafft ({titel})')
             if auftrag == 'nachthafen': await pg.screenshot(path=str(BILDER / f'{MOTOR}-ergebnis.png'))
-            ok(not (await wert(pg, f'{N}.ton()'))['musik'], f'{auftrag}: Musik endet mit dem Ergebnis')
             await pg.evaluate(f'{N}.setzeBot(null)')
         gespeichert = json.loads(await wert(pg, "localStorage.getItem('pixelhafen.nachtschicht')"))
-        ok(gespeichert['v'] == 1 and all(gespeichert['beste'][a]['geschafft'] == 1 and gespeichert['beste'][a]['punkte'] > 0 for a in ['containerkai', 'neonviertel', 'nachthafen']), 'Bestleistungen getrennt und versioniert gespeichert')
-        # Wiederholung: Überspringen erlaubt
+        ok(gespeichert['v'] == 2 and all(gespeichert['beste'][a]['geschafft'] == 1 and gespeichert['beste'][a]['punkte'] > 0 for a in ['containerkai', 'neonviertel', 'nachthafen']), 'Bestleistungen getrennt und versioniert gespeichert')
+        # Mission ohne Coup startet direkt mit der Fahrt
         await pg.click('#ergebnisAuftraegeKnopf')
-        ok(not await wert(pg, 'document.querySelector("#ueberspringenZeile").hidden'), 'nach dem ersten Abschluss: Coup überspringen wählbar')
+        if await wert(pg, 'document.querySelector("#coupWahl").checked'): await pg.click('#coupWahl')
         await pg.click('[data-auftrag="containerkai"]')
-        ok(await wert(pg, f"{N}.zustand()") == 'coup' and not await wert(pg, 'document.querySelector("#ueberspringenKnopf").hidden'), 'Überspringen-Knopf im Coup sichtbar')
-        await pg.click('#ueberspringenKnopf')
         ce = await wert(pg, f'{N}.lauf().coupErgebnis')
-        ok(await wert(pg, f"{N}.zustand()") == 'fahrt' and ce['uebersprungen'] and ce['timing'] == 0 and ce['beutel'] == 3, 'Überspringen: ohne Coup-Bonuspunkte, 3 Grundtaschen')
+        ok(await wert(pg, f"{N}.zustand()") == 'fahrt' and not ce['gespielt'] and ce['beutel'] == 0, 'Mission ohne Coup: sofort Fahrt, keine Coup-Punkte')
         ok(not pg.fehler, f'keine Fehler in der Konsole: {pg.fehler[:3]}')
         await ctx.close()
 
         # ---------------------------------------------------------------
         print('\n# Ohne localStorage und mit kaputtem Speicher')
         ctx, pg = await neue_seite(b, 390, 844, touch=True, init="Object.defineProperty(window, 'localStorage', { get() { throw new Error('gesperrt'); } });")
-        await pg.tap('#trainingKnopf')
+        await pg.tap('#spielenKnopf')
         ok(await warte_fahrt(pg), 'ohne localStorage spielbar')
         await pg.wait_for_timeout(800)
         ok(await wert(pg, f'{F}.w.zeit') > 0.3 and not pg.fehler, f'läuft ohne Fehler {pg.fehler[:2]}')
         await ctx.close()
         ctx, pg = await neue_seite(b, 390, 844, touch=True, init="try { localStorage.setItem('pixelhafen.nachtschicht', '{kaputt'); } catch (e) {}")
         ok(await wert(pg, f"{N}.zustand()") == 'menue' and not pg.fehler, 'kaputter Speicher wird ignoriert')
+        await ctx.close()
+        ctx, pg = await neue_seite(b, 390, 844, touch=True, init="try { localStorage.setItem('pixelhafen.nachtschicht', JSON.stringify({ v: 1, ton: true, effekte: 0.3, musik: 0.2, knoepfe: true, empfindlich: 1.35, beste: { containerkai: { punkte: 12345, beutel: 4, zeit: 99, geschafft: 2, versuche: 3 } } })); } catch (e) {}")
+        alt = json.loads(await wert(pg, "localStorage.getItem('pixelhafen.nachtschicht')"))
+        ok(alt['v'] == 2 and alt['effekte'] == 0.3 and alt['musik'] == 0.2 and alt['knoepfe'] is True and alt['empfindlich'] == 1.35, 'Version 1 → 2: Einstellungen übernommen')
+        ok(alt['beste']['containerkai']['punkte'] == 0 and alt['alt']['containerkai']['punkte'] == 12345, 'alte Bestleistung archiviert, neue Rekordtabelle')
+        await pg.tap('#auftragWahlKnopf')
+        ok('vor der Überarbeitung: 12.345' in await pg.inner_text('[data-auftrag="containerkai"]'), 'alte Bestleistung wird bei der Mission angezeigt')
         await ctx.close()
         ctx, pg = await neue_seite(b, 390, 844, touch=True, init="try { localStorage.setItem('pixelhafen.nachtschicht', JSON.stringify({ v: 99, ton: false })); } catch (e) {}")
         ok(await wert(pg, f'{N}.speicher.ton') is True, 'fremde Speicherversion wird nicht übernommen')
@@ -341,8 +366,8 @@ async def main():
                    ('tablet-quer', 1180, 820, True, 2), ('desktop', 1440, 900, False, 1), ('breit', 2560, 1080, False, 1)]
         for name, w, h, touch, dpr in geraete:
             ctx, pg = await neue_seite(b, w, h, touch=touch, dpr=dpr, query='?seed=5')
-            if touch: await pg.tap('#trainingKnopf')
-            else: await pg.click('#trainingKnopf')
+            if touch: await pg.tap('#spielenKnopf')
+            else: await pg.click('#spielenKnopf')
             await warte_fahrt(pg); await pg.wait_for_timeout(1200)
             lay = await wert(pg, f'{N}.lay()')
             s = lay['sicht']
@@ -365,7 +390,7 @@ async def main():
         print('\n# Weniger Bewegung und Bildrate')
         ctx, pg = await neue_seite(b, 390, 844, touch=True, dpr=2, bewegung='reduce', query='?seed=8')
         ok(await wert(pg, "matchMedia('(prefers-reduced-motion: reduce)').matches"), 'reduced motion aktiv')
-        await pg.tap('#trainingKnopf'); await warte_fahrt(pg)
+        await pg.tap('#spielenKnopf'); await warte_fahrt(pg)
         await pg.wait_for_timeout(1500)
         ok(not pg.fehler, 'läuft mit „weniger Bewegung“')
         if MOTOR == 'chromium':

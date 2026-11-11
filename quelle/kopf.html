@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Nachtschicht: Hafenbande – Pixelhafen</title>
-<meta name="description" content="Nachtschicht: Hafenbande – ein überzeichnetes Comic-Arcade-Spiel: kurzer Timing-Coup am erfundenen Wertterminal, dann eine rasante Verfolgungsfahrt über die Hafenautobahn. Kostenlos, ohne Anmeldung, ohne Werbung.">
+<title>Nachtschicht: Hafenflucht – Pixelhafen</title>
+<meta name="description" content="Nachtschicht: Hafenflucht – ein schneller Neon-Arcade-Racer in der Draufsicht: Weiche bei hohem Tempo dichtem Verkehr aus, verbinde Überholserien und nutze Boostfelder. Mit eigener 80er-Musik. Kostenlos, ohne Anmeldung, ohne Werbung.">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#10243A">
 <meta name="mobile-web-app-capable" content="yes">
@@ -62,8 +62,8 @@
   #boostWirkung { flex: 0.75 1 0; --b: linear-gradient(90deg, #24D6CD, #FFD35A); border-color: var(--gelb); }
   #boostWirkung[hidden] { display: none; }
   body[data-zustand="coup"] .nurFahrt, body[data-zustand="menue"] #hud { display: none; }
-  body:not([data-modus="training"]) .nurTraining { display: none; }
-  body[data-modus="training"] .nichtTraining { display: none; }
+  body:not([data-modus="endlos"]) .nurEndlos { display: none; }
+  .ausgeblendet { display: none !important; }
 
   /* Steuerfläche und Knöpfe (Lage setzt das Skript) */
   #lenkflaeche {
@@ -95,8 +95,8 @@
   #meldung.gross { font-size: clamp(18px, 6vw, 30px); }
   #meldung.warn { color: var(--magenta); }
   #hinweis {
-    width: min(86vw, 440px); padding: 8px 12px; color: var(--text); background: rgba(16, 36, 58, 0.9);
-    border: 2px solid var(--tuerkis); border-radius: 12px; font: 600 15px/1.35 var(--body);
+    width: min(80vw, 360px); padding: 6px 10px; color: var(--text); background: rgba(16, 36, 58, 0.88);
+    border: 2px solid var(--tuerkis); border-radius: 10px; font: 600 13px/1.3 var(--body);
   }
   #hinweis[hidden], #meldung:empty { display: none; }
   #tastenTipp { position: absolute; z-index: 1; color: var(--muted); font: 9px/1.9 var(--retro); pointer-events: none; }
@@ -165,8 +165,8 @@
         </button>
         <div class="anzeige"><small>PUNKTE</small><b id="hudPunkte">0</b></div>
         <div class="anzeige nurFahrt"><small id="hudRestTitel">ZIEL</small><b id="hudRest">–</b></div>
-        <div class="anzeige klein nichtTraining"><small>BEUTE</small><b id="hudBeutel">0</b></div>
-        <button class="rund nurTraining" id="neustartSchnell" type="button" aria-label="Training neu starten">
+        <div class="anzeige klein ausgeblendet" id="hudBeuteFeld"><small>BEUTE</small><b id="hudBeutel">0</b></div>
+        <button class="rund nurEndlos" id="neustartSchnell" type="button" aria-label="Neuer Lauf">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 9a5 5 0 1 1-2-4.5"/><path d="M11 1.5v3.5h-3.5"/></svg>
         </button>
         <button class="rund js-ton" id="tonKnopf" type="button" aria-label="Ton an oder aus (M)" aria-pressed="true">
@@ -175,7 +175,7 @@
       </div>
       <div class="hudzeile nurFahrt">
         <div class="balken" id="zustandBalken" role="meter" aria-label="Fahrzeugzustand" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><i></i><span>ZUSTAND</span></div>
-        <div class="balken nichtTraining" id="druckBalken" role="meter" aria-label="Verfolgungsdruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><span>DRUCK</span></div>
+        <div class="balken ausgeblendet" id="druckBalken" role="meter" aria-label="Verfolgungsdruck" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><span>DRUCK</span></div>
         <div class="balken" id="boostWirkung" role="timer" aria-label="Boost wirkt noch" hidden><i></i><span>BOOST!</span></div>
       </div>
     </div>
@@ -201,13 +201,14 @@
   <div class="tafel" role="dialog" aria-modal="true" aria-labelledby="fStartTitel">
     <section id="fStart">
       <p class="marke"><svg aria-hidden="true"><use href="#logo"/></svg>PIXELHAFEN</p>
-      <h1 id="fStartTitel">NACHTSCHICHT<small>HAFENBANDE</small></h1>
+      <h1 id="fStartTitel">NACHTSCHICHT<small>HAFENFLUCHT</small></h1>
       <canvas id="startTitel" width="640" height="320" aria-hidden="true"></canvas>
-      <p class="unterzeile">Comic-Coup am Kai, dann ab über die Hafenautobahn!</p>
+      <p class="unterzeile">Neon-Arcade-Racer: Weiche bei Vollgas dem Verkehr aus!</p>
+      <p class="hinweistext" id="startRekord" style="text-align:center" hidden></p>
       <p class="duell" id="startDuell" hidden></p>
       <div class="knoepfe">
-        <button class="btn main" id="auftragWahlKnopf" type="button">Auftrag wählen</button>
-        <button class="btn" id="trainingKnopf" type="button">Training</button>
+        <button class="btn main" id="spielenKnopf" type="button">Spielen</button>
+        <button class="btn" id="auftragWahlKnopf" type="button">Missionen</button>
         <div class="knoepfe zwei" style="margin-top:0">
           <button class="btn klein" id="soundKnopf" type="button">Sound</button>
           <button class="btn klein" id="steuerungKnopf" type="button">Steuerung</button>
@@ -217,16 +218,16 @@
           <a class="btn klein" href="https://moje9328.github.io/spiele/">Zur Pixelhafen-Seite</a>
         </div>
       </div>
-      <p class="hinweistext">Alles erfunden und überzeichnet: Orte, Fahrzeuge, das Wertterminal. Beutetaschen sind reine Spielpunkte.</p>
+      <p class="hinweistext">„Spielen“ startet sofort Neon-Endlos. Alles ist erfunden: Stadt, Fahrzeuge, Musik. Beutetaschen sind reine Spielpunkte.</p>
     </section>
 
     <section id="fAuftraege" hidden>
       <div class="zeile zurueck">
-        <h2 id="fAuftraegeTitel">Auftrag wählen</h2>
+        <h2 id="fAuftraegeTitel">Missionen</h2>
         <button class="btn klein js-zurueck" type="button">Zurück</button>
       </div>
       <div class="auftraege" id="auftragListe"></div>
-      <label class="schalter" id="ueberspringenZeile"><input type="checkbox" id="ueberspringenWahl"> Coup überspringen (bei geschafften Aufträgen, ohne Coup-Punkte)</label>
+      <label class="schalter" id="coupZeile"><input type="checkbox" id="coupWahl"> Mit Coup-Einstieg: kurzes Timing-Minispiel vor der Fahrt (Extra-Punkte)</label>
     </section>
 
     <section id="fSound" hidden>
@@ -236,9 +237,8 @@
       </div>
       <button class="btn js-ton" type="button" aria-pressed="true" style="width:100%">Ton: an</button>
       <div class="regler"><label for="pegelEffekte">Effekte</label><output id="pegelEffekteWert">80 %</output><input type="range" id="pegelEffekte" min="0" max="100" step="5"></div>
-      <div class="regler"><label for="pegelFahrt">Motor &amp; Sirene</label><output id="pegelFahrtWert">55 %</output><input type="range" id="pegelFahrt" min="0" max="100" step="5"></div>
-      <div class="regler"><label for="pegelMusik">Musik</label><output id="pegelMusikWert">35 %</output><input type="range" id="pegelMusik" min="0" max="100" step="5"></div>
-      <p class="hinweistext">Ton startet erst nach deiner ersten Berührung oder Taste. M schaltet ihn jederzeit an oder aus.</p>
+      <div class="regler"><label for="pegelMusik">Musik</label><output id="pegelMusikWert">45 %</output><input type="range" id="pegelMusik" min="0" max="100" step="5"></div>
+      <p class="hinweistext">Ton und Musik („Neonküste“, eigene Komposition) starten erst nach deiner ersten Berührung oder Taste. M schaltet alles an oder aus.</p>
     </section>
 
     <section id="fSteuerung" hidden>
@@ -254,9 +254,11 @@
           <li>Pfeiltasten ← → oder A / D lenken.</li>
           <li>Mit der Maus kannst du auf der Straße ziehen.</li>
           <li>P oder Esc: Pause. M: Ton.</li></ul></li>
-        <li><h3>Coup</h3><p>Tippen, Leertaste oder der IMPULS-Knopf, wenn der Zeiger im hellen Feld steht. Danach die fliegenden Beutetaschen im Ring fangen.</p></li>
+        <li><h3>Coup (optional bei Missionen)</h3><p>Tippen, Leertaste oder der IMPULS-Knopf, wenn der Zeiger im hellen Feld steht. Danach die fliegenden Beutetaschen im Ring fangen.</p></li>
         <li><h3>Fahrt</h3><ul>
-          <li>Weiche dem Verkehr aus. Blinkende Autos wechseln gleich die Spur.</li>
+          <li>Weiche dem Verkehr aus und verbinde saubere Überholungen zu Serien. Blinkende Autos wechseln gleich die Spur.</li>
+          <li>Knapp, aber ohne Berührung vorbei gibt Bonuspunkte – pro Auto einmal.</li>
+          <li>Ein Unfall kostet Zustand, beendet aber nicht gleich den Lauf. Ist der Zustand leer, ist Schluss.</li>
           <li><b>Fahre über die leuchtenden Pfeilfelder für einen Temposchub!</b> Sie sind freiwillig – nimm sie nur, wenn der Weg danach frei ist.</li>
           <li>Unfälle kosten Zustand und erhöhen den Druck.</li>
           <li>Streifen kündigen sich unten mit einem blauen Pfeil an. Abstand, Boostfelder und Streckenmarken senken den Druck.</li>
@@ -282,7 +284,7 @@
         </div>
         <div class="knoepfe zwei" style="margin-top:0">
           <button class="btn klein" id="pauseSteuerungKnopf" type="button">Steuerung</button>
-          <button class="btn klein" id="pauseMenueKnopf" type="button">Aufträge</button>
+          <button class="btn klein" id="pauseMenueKnopf" type="button">Menü</button>
         </div>
       </div>
     </section>
@@ -296,7 +298,7 @@
       <div class="knoepfe">
         <button class="btn main" id="nochmalKnopf" type="button">Noch einmal</button>
         <div class="knoepfe zwei" style="margin-top:0">
-          <button class="btn klein" id="ergebnisAuftraegeKnopf" type="button">Aufträge</button>
+          <button class="btn klein" id="ergebnisAuftraegeKnopf" type="button">Menü</button>
           <button class="btn klein" id="ergebnisFreunde" type="button">Freunde herausfordern</button>
         </div>
       </div>

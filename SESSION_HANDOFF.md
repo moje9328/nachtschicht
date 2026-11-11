@@ -1,4 +1,6 @@
-# Nachtschicht: Hafenbande – Übergabe
+# Nachtschicht: Hafenflucht – Übergabe
+
+(Bis Runde 2 hieß das Spiel „Nachtschicht: Hafenbande“. Ab Runde 3 ist es ein Neon-Arcade-Racer; die Abschnitte „Aufbau“ und „Entscheidungen“ unten gelten weiter, sind aber durch Runde 3 teilweise überholt.)
 
 Stand: 11. November 2026. Erste Fassung, **nicht veröffentlicht** (kein GitHub-Repo angelegt, nichts gepusht).
 Geplante Adresse: https://moje9328.github.io/nachtschicht/ (Karte auf der Pixelhafen-Seite ist lokal eingetragen und lokal committet).
@@ -80,3 +82,46 @@ GitHub-Repo `moje9328/nachtschicht` anlegen, Pages aus main /, pushen; in `~/spi
 **Tests:** Logik 139/139 (neu: einmalig, seitlich vorbei, nur Rand, Stapeln/Auffrischen, 120 m/s, weich, Ende-Reset, Felder fair platziert, erstes Feld eigene Spur, keine Ketten, Aufträge ganz ohne Felder schaffbar). Browser Chromium 131/131, WebKit 124/124 (kein Boostknopf/-balken, Leertaste/Shift/↑/W ohne Boost, Feld im echten Loop genau einmal, Anzeige nur während Wirkung, Pause hält Wirkzeit an, Musik läuft/endet). Schritt p99,9 0,6 ms.
 
 **Nicht geprüft:** Musik und Boost-Sound nicht angehört; Spielgefühl der neuen Werte nicht mit Menschen getestet (nur Bots); echtes Handy.
+
+## Runde 3 (11.11.2026): Neon-Arcade-Racer – Ausweichen ist das Hauptspiel
+
+**Wunsch:** Das Spiel war zu langsam und ereignisarm. Gewünscht war ein schneller Neon-Racer in der Draufsicht mit „Neon-Endlos“ als Hauptmodus, kompakten Missionen und optionalem Coup. Das Motorgeräusch sollte ganz weg, dafür eigene 80er-Musik. Name: „Nachtschicht: Hafenflucht“.
+
+**Ursachen des langweiligen Gefühls (gemessen):**
+- Die Annäherung an den Verkehr lag im Median nur bei 10–12 m/s. Das ergab 5–6 s Vorwarnzeit, also kaum echte Entscheidungen.
+- Im Containerkai war 13 % der Zeit kein Auto im Bild, einmal 7 s am Stück.
+- Weit entfernte Autos wirkten durch die Perspektive winzig.
+- Die Aufträge dauerten 90–146 s, und vor jeder Fahrt kam der Coup.
+- Ein Motor brummte dauernd.
+
+**Änderungen:**
+- **Darstellung:** echte Draufsicht ohne Verengung (`ANSICHT`: 50 m voraus, 12 m zurück, 22 m breit, längs gestaucht für Hochformat). Fahrzeuge, Fahrbahn, Felder und Kollisionen nutzen dieselben Weltkoordinaten.
+- **Tempo:** Verkehr relativ langsamer (`TEMPO_BEZUG` 42). Die Annäherung liegt jetzt bei 17,6–18,5 m/s, das ist das 1,5- bis 1,7-Fache. Vorwarnzeit ca. 2,8 s.
+  - Missionen: Grundtempo 43/44/46.
+  - Endlos: steigt weich von 40 auf höchstens 48; Rampe 350–5200 m, danach Obergrenze.
+- **Verkehr:**
+  - Muster: Einzel, Paar, Versetzt, Lkw-Mix, Tor (3 Autos, 1 Lücke), Slalom. Sie kommen in Wellen (intensiv / kurze Entlastung), überall 4 Spuren.
+  - Fairness-Prüfung zusätzlich für spätere Ankunft (Vorsprung −26/−13 m, z. B. nach Unfall).
+  - Angestoßene Autos werden vorausberechnet.
+- **Unfälle:** leicht bremsen (82 %), Schaden 18/10. Der Anstoß wird nicht mehr aufaddiert (Fehler gefunden: Dauerkontakt addierte jede 1/120 s +9 m/s).
+- **Streifen:** schneller (14–19 % über Grundtempo), erscheinen knapp außerhalb des Bildes (mit Vorwarnung), wählen die Spur mit der größten Lücke, bremsen nach echtem Bremsweg, halten ~10 m zum Spieler. Abgehängt erst ab 75 m. Sie sind 5–11 % der Zeit im Bild und rammen nie.
+- **Modi:**
+  - „Spielen“ startet sofort Neon-Endlos; nach Game over „Sofort nochmal“ (Fokus, Enter).
+  - Missionen haben die Checkbox „Mit Coup-Einstieg“ (Standard aus). Das Training ist entfallen.
+- **Punkte:** neu „Saubere Serie!“ (+250 je 10 saubere Überholungen) und „Knapp vorbei!“. Das HUD zeigt den Druck nur, wenn eine Streife relevant ist, und die Beute nur nach einem Coup.
+- **Kulisse:** fünf Abschnitte, Neonboulevard (Palmen, Neonhotels mit Fensterlichtern), Hafenautobahn (Wasser, Hallen, Leitplanken), Lichttunnel, Küstenstraße (Strand, Wasser, Palmen) und Lagerhafen (Container, Kräne). Glow nur als Doppellinie um scharfe Formen, kein Blur.
+- **Audio:**
+  - Motor und Dauersirene sind komplett entfernt.
+  - Neu `6-musik.js` „Neonküste“: eigene Komposition, 136 BPM, a-Moll, 36 Takte = 63,5 s. Teile: Intro, A, B, A', Brücke, Überleitung. Pads, Achtel-Bass, Lead mit Vibrato, Arpeggios, Drums. Planung über die Audio-Uhr, Hüllkurven, nahtloser Loop.
+  - Die Musik läuft nach der ersten Interaktion durchgehend, in genau einer Schleife; bei Ergebnissen wird sie gedämpft.
+  - Zwei Regler: Musik und Effekte.
+- **Speicher:** Version 2. Die Einstellungen aus Version 1 werden übernommen, alte Bestleistungen unter `alt` archiviert (Anzeige „vor der Überarbeitung“).
+
+**Tests:**
+- Logik: 172 Prüfungen, darunter Abnahme-Messungen zu Annäherung, Vorwarnzeit, Leerlauf und Pflicht zum Ausweichen (ohne Lenken Unfall nach < 14 s), Obergrenzen, Muster, Missionsdauer, sanftes Bremsen, Serienbonus und Regressionstest Anstoß.
+- Browser: Chromium 136/136, WebKit 129/129. Unter anderem keine Audioquelle ohne geplantes Ende, genau ein Musikstart nach mehreren Neustarts, Migration v1→v2, Endlos-Game-over mit Enter-Neustart.
+- 40 zusätzliche Seeds je Modus: 0 vom Planer erzeugte Wände (die übrigen Stichproben nur direkt nach eigenen Unfällen).
+- Musik offline gerendert: 63,5 s, Spitze 0,44, keine stillen Viertelsekunden, Pegel vor und nach dem Loop gleich (0,0535), kein Klick.
+- Browser-Langlauf: 648 s Endlos ohne Fehler, max. 12 Autos und 14 Partikel.
+
+**Nicht geprüft:** Ich habe die Musik nicht angehört, nur gemessen. Kein echtes Handy und keine echten Touch-Gesten, nur CDP-Emulation. Schwierigkeit und Gefühl wurden nur mit Bots abgestimmt, nicht mit Menschen.

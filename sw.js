@@ -1,6 +1,6 @@
 // Offline-Helfer: Merkt sich alle Dateien des Spiels.
 // Mit Internet wird immer zuerst die neueste Version geladen, ohne Internet die gemerkte.
-const CACHE = 'nachtschicht-v1';
+const CACHE = 'nachtschicht-v2';
 const FILES = [
   './',
   './index.html',

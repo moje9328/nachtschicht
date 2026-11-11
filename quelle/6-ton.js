@@ -1,16 +1,16 @@
 // ===================================================================
 // 6 · TON
 // Alles synthetisch mit Web Audio, keine Dateien. Startet erst nach einer
-// Nutzeraktion. Drei getrennte Lautstärken (Effekte, Motor & Sirene, Musik)
-// plus Ton-aus. Höchstens MAX_STIMMEN kurze Geräusche gleichzeitig.
+// Nutzeraktion. Zwei getrennte Lautstärken (Musik, Effekte) plus Ton-aus.
+// Kein Motorgeräusch, keine Dauersirene: nur kurze Effekte und die Musik
+// „Neonküste“ (6-musik.js). Höchstens MAX_STIMMEN kurze Effekte gleichzeitig.
 // Grundgerüst (Kontext, iPhone-Stummschalter) aus den anderen Pixelhafen-Spielen.
 // ===================================================================
 
 const Ton = (() => {
-  let ctx = null, haupt = null, busEffekt = null, busFahrt = null, busMusik = null, stummAudio = null, rauschen = null;
+  let ctx = null, haupt = null, busEffekt = null, busMusik = null, busJingle = null, musikFade = null, stummAudio = null, rauschen = null, musikRauschen = null;
   let an = true;
-  const pegel = { effekte: 0.8, fahrt: 0.55, musik: 0.35 };
-  let motor = null, sirene = null;
+  const pegel = { effekte: 0.8, musik: 0.45 };
 
   function sitzung() {
     try {
@@ -44,8 +44,13 @@ const Ton = (() => {
         komp.threshold.value = -14; komp.knee.value = 10; komp.ratio.value = 6;
         haupt = ctx.createGain(); haupt.gain.value = 0.85;
         haupt.connect(komp).connect(ctx.destination);
-        busEffekt = ctx.createGain(); busFahrt = ctx.createGain(); busMusik = ctx.createGain();
-        for (const b of [busEffekt, busFahrt, busMusik]) b.connect(haupt);
+        busEffekt = ctx.createGain(); busMusik = ctx.createGain(); busJingle = ctx.createGain();
+        busEffekt.connect(haupt); busJingle.connect(haupt);
+        // Musik: angenehme Höhen (Tiefpass) und eigene Blende für Ein-/Ausblenden und Ducking
+        const mf = ctx.createBiquadFilter(); mf.type = 'lowpass'; mf.frequency.value = 8000; mf.Q.value = 0.5;
+        musikFade = ctx.createGain(); musikFade.gain.value = 0.0001;
+        busMusik.connect(mf).connect(musikFade).connect(haupt);
+        musikRauschen = Musik.rauschPuffer(ctx);
         setzePegel();
         // eine Sekunde weißes Rauschen für Boost, Unfall, Kratzen
         rauschen = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
@@ -61,8 +66,8 @@ const Ton = (() => {
     if (!ctx) return;
     const t = ctx.currentTime;
     busEffekt.gain.setTargetAtTime(pegel.effekte, t, 0.03);
-    busFahrt.gain.setTargetAtTime(pegel.fahrt, t, 0.03);
     busMusik.gain.setTargetAtTime(pegel.musik, t, 0.03);
+    busJingle.gain.setTargetAtTime(pegel.musik, t, 0.03);
   }
 
   // Begrenzung gleichzeitiger kurzer Geräusche
@@ -100,71 +105,41 @@ const Ton = (() => {
     q0.start(t, Math.random() * 0.5); q0.stop(t + dauer + 0.05);
   }
 
-  // ---------- Dauerklänge: Motor und Sirene ----------
-  function baueMotor() {
-    const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-    o1.type = 'sawtooth'; o2.type = 'square';
-    f.type = 'lowpass'; f.frequency.value = 400; f.Q.value = 1.2;
-    g.gain.value = 0.0001;
-    const g2 = ctx.createGain(); g2.gain.value = 0.35;
-    o1.connect(f); o2.connect(g2).connect(f); f.connect(g).connect(busFahrt);
-    o1.start(); o2.start();
-    return { o1, o2, f, g };
-  }
-  function baueSirene() {
-    const o = ctx.createOscillator(), lfo = ctx.createOscillator(), lt = ctx.createGain(), f = ctx.createBiquadFilter(), g = ctx.createGain();
-    o.type = 'triangle'; o.frequency.value = 680;
-    lfo.type = 'sine'; lfo.frequency.value = 0.9; lt.gain.value = 170;   // weiches Auf und Ab statt schrillem Signal
-    lfo.connect(lt).connect(o.frequency);
-    f.type = 'lowpass'; f.frequency.value = 1500;
-    g.gain.value = 0.0001;
-    o.connect(f).connect(g).connect(busFahrt);
-    o.start(); lfo.start();
-    return { o, g };
-  }
-
-  // ---------- Hintergrundmusik: fröhliche Dur-Schleife, leise, läuft durch ----------
-  // Akkorde C | C | Am | Am | F | F | G | G, Achtel bei 118 BPM. Mehr Spannung nur durch eine
-  // zusätzliche leise Arpeggio-Schicht, nie durch Lauterwerden oder Hochpitchen.
-  const MEL = [0, null, 4, null, 7, null, 4, null, 9, null, 7, null, 4, null, null, null,
-    9, null, 12, null, 9, null, 4, null, 7, null, 4, null, null, null, null, null,
-    5, null, 9, null, 12, null, 9, null, 7, null, 5, null, 4, null, null, null,
-    7, null, 11, null, 14, null, 11, null, 12, null, null, null, 11, null, 7, null];
-  const BASS = [130.81, 130.81, 110, 110, 87.31, 87.31, 98, 98];
-  const ARP = [[0, 4, 7], [0, 4, 7], [-3, 0, 4], [-3, 0, 4], [-7, -3, 0], [-7, -3, 0], [-5, -1, 2], [-5, -1, 2]];
-  const ACHTEL = 60 / 118 / 2;
-  let musikAn = false, musikZeit = 0, musikSchritt = 0, musikSpannung = 0;
+  // ---------- Hintergrundmusik: ein einziger Planer über die Audio-Uhr ----------
+  // Läuft unabhängig vom Spieltempo. Beim Wieder-Einschalten wird nichts doppelt gestartet.
+  let musikAn = false, musikSchritt = 0, musikZeit = 0, musikGestartet = 0;
   function musikPlanen() {
     if (!musikAn || !bereit()) return;
     const jetzt = ctx.currentTime;
-    if (musikZeit < jetzt) musikZeit = jetzt + 0.05;
-    while (musikZeit < jetzt + 0.3) {
-      const st = musikSchritt % 64, takt = Math.floor(st / 8), inTakt = st % 8, start = musikZeit - jetzt;
-      const m = MEL[st];
-      if (m != null) ton(523.25 * Math.pow(2, m / 12), 523.25 * Math.pow(2, m / 12), ACHTEL * 1.6, { typ: 'triangle', laut: 0.09, start, bus: busMusik, anstieg: 0.01 });
-      if (inTakt === 0 || inTakt === 4) ton(BASS[takt], BASS[takt], ACHTEL * 1.7, { typ: 'triangle', laut: 0.16, start, bus: busMusik, anstieg: 0.01 });
-      if (inTakt === 6) ton(BASS[takt] * 1.5, BASS[takt] * 1.5, ACHTEL * 0.9, { typ: 'triangle', laut: 0.1, start, bus: busMusik });
-      if (inTakt % 2 === 1) rausch(0.03, { laut: 0.012, f1: 7000, f2: 6000, typ: 'highpass', q: 0.7, start, bus: busMusik, anstieg: 0.002 });
-      if (musikSpannung > 0) {
-        const n = ARP[takt][inTakt % 3];
-        ton(1046.5 * Math.pow(2, n / 12), 1046.5 * Math.pow(2, n / 12), ACHTEL * 0.6, { typ: 'sine', laut: 0.03 * musikSpannung, start, bus: busMusik });
-      }
-      musikZeit += ACHTEL; musikSchritt++;
+    if (musikZeit < jetzt + 0.02) musikZeit = jetzt + 0.06;   // nach Pause/Hänger: weiter ohne Nachholen
+    const voll = stimmenEnde.filter(e => e > jetzt).length >= MAX_STIMMEN - 2;
+    while (musikZeit < jetzt + 0.35) {
+      try { Musik.planeSchritt(ctx, busMusik, musikRauschen, musikSchritt % Musik.SCHRITTE, musikZeit, voll); } catch (e) { musikAn = false; return; }
+      musikZeit += Musik.SECHZEHNTEL; musikSchritt++;
     }
+  }
+  function blende(ziel, dauer) {
+    if (!ctx || !musikFade) return;
+    const t = ctx.currentTime;
+    musikFade.gain.cancelScheduledValues(t);
+    musikFade.gain.setValueAtTime(Math.max(0.0001, musikFade.gain.value), t);
+    musikFade.gain.linearRampToValueAtTime(Math.max(0.0001, ziel), t + dauer);
   }
 
   return {
     wecke,
-    // Musik: an/aus (läuft weiter, ohne Neustart), Spannung 0–1 schaltet die Zusatzschicht
-    musik(an, spannung = 0) {
-      if (an && !musikAn) { musikAn = true; musikZeit = 0; }
-      if (!an) musikAn = false;
-      musikSpannung = klemme(spannung, 0, 1);
-      musikPlanen();
+    // Musik an/aus. Mehrfaches Einschalten startet keine zweite Schleife.
+    musik(an) {
+      if (an) {
+        if (!musikAn && bereit()) { musikAn = true; musikSchritt = 0; musikZeit = 0; musikGestartet++; blende(1, 1.2); }
+        musikPlanen();
+      } else if (musikAn) { musikAn = false; blende(0.0001, 0.5); }
     },
+    // kurz leiser für Ergebnis-Jingles
+    musikDucken(dauer = 1.6) { if (!musikAn) return; blende(0.3, 0.15); const t = ctx.currentTime; musikFade.gain.setValueAtTime(0.3, t + dauer); musikFade.gain.linearRampToValueAtTime(1, t + dauer + 0.6); },
     musikLaeuft: () => musikAn,
     istAn: () => an,
-    status: () => ({ kontext: ctx ? ctx.state : 'keiner', an, stimmen: stimmenEnde.length, motor: !!motor, sirene: !!sirene, musik: musikAn }),
+    status: () => ({ kontext: ctx ? ctx.state : 'keiner', an, stimmen: stimmenEnde.length, musik: musikAn, musikStarts: musikGestartet, musikSchritt, dauerquellen: 0 }),
     setze(wert) {
       an = !!wert;
       if (an) { if (ctx || !navigator.userActivation || navigator.userActivation.hasBeenActive) wecke(); }
@@ -174,28 +149,6 @@ const Ton = (() => {
     // Pause / Tabwechsel: alles anhalten; Weiter: wieder aufwecken
     anhalten() { if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {}); if (stummAudio) stummAudio.pause(); },
     fortsetzen() { if (an) wecke(); },
-
-    // Motor: Tonhöhe nach Tempo, beim Boost etwas heller. tempo in m/s, null = aus
-    fahrt(tempo, boost, sireneNaehe) {
-      if (!ctx) return;
-      const t = ctx.currentTime;
-      if (tempo == null) {
-        if (motor) { motor.g.gain.setTargetAtTime(0.0001, t, 0.08); const m = motor; setTimeout(() => { try { m.o1.stop(); m.o2.stop(); } catch (e) { /* */ } }, 600); motor = null; }
-        if (sirene) { sirene.g.gain.setTargetAtTime(0.0001, t, 0.1); const s = sirene; setTimeout(() => { try { s.o.stop(); } catch (e) { /* */ } }, 700); sirene = null; }
-        return;
-      }
-      if (!bereit()) return;
-      if (!motor) motor = baueMotor();
-      const f = 38 + tempo * 1.9 + (boost ? 18 : 0);
-      motor.o1.frequency.setTargetAtTime(f, t, 0.08);
-      motor.o2.frequency.setTargetAtTime(f * 0.5, t, 0.08);
-      motor.f.frequency.setTargetAtTime(260 + tempo * 14 + (boost ? 500 : 0), t, 0.1);
-      motor.g.gain.setTargetAtTime(0.05 + Math.min(1, tempo / 50) * 0.05, t, 0.1);
-      // Sirene: leise, nur in der Nähe einer Streife, nie lauter als 0,07
-      const sn = klemme(sireneNaehe || 0, 0, 1);
-      if (sn > 0.01 && !sirene) sirene = baueSirene();
-      if (sirene) sirene.g.gain.setTargetAtTime(Math.max(0.0001, sn * 0.07), t, 0.25);
-    },
 
     klick() { if (bereit() && frei(0.05)) ton(660, 660, 0.04, { typ: 'square', laut: 0.04 }); },
     // Coup
@@ -241,6 +194,7 @@ const Ton = (() => {
     planke() { if (bereit() && frei(0.25)) rausch(0.22, { laut: 0.08, f1: 3000, f2: 1200, typ: 'bandpass', q: 3 }); },
     rempler() { if (bereit() && frei(0.2)) { ton(150, 90, 0.12, { typ: 'sine', laut: 0.12 }); } },
     ueberholt(serie) { if (bereit() && frei(0.08)) { const f = 600 + Math.min(10, serie) * 40; ton(f, f * 1.2, 0.06, { typ: 'triangle', laut: 0.045 }); } },
+    serie() { if (bereit() && frei(0.5)) { [659, 880, 1109, 1319].forEach((f, i) => ton(f, f, 0.1, { typ: 'square', laut: 0.045, start: i * 0.06 })); ton(1760, 1760, 0.22, { typ: 'triangle', laut: 0.06, start: 0.24 }); } },
     knapp() { if (bereit() && frei(0.25)) { rausch(0.18, { laut: 0.07, f1: 900, f2: 3500, typ: 'bandpass', q: 2 }); ton(988, 1319, 0.12, { typ: 'triangle', laut: 0.08, start: 0.05 }); } },
     marke() { if (bereit() && frei(0.5)) { ton(659, 659, 0.12, { typ: 'triangle', laut: 0.12 }); ton(988, 988, 0.22, { typ: 'triangle', laut: 0.12, start: 0.12 }); } },
     polizeiWarnung() { if (bereit() && frei(0.4)) { ton(740, 740, 0.09, { typ: 'triangle', laut: 0.07 }); ton(587, 587, 0.12, { typ: 'triangle', laut: 0.07, start: 0.14 }); } },
@@ -254,20 +208,20 @@ const Ton = (() => {
       const noten = [[523, 0], [659, 0.12], [784, 0.24], [1047, 0.38], [988, 0.52], [1047, 0.62], [1319, 0.76], [1568, 0.94]];
       noten.forEach(([f, st], i) => {
         const lang = i === noten.length - 1 ? 0.55 : 0.12;
-        ton(f, f, lang, { typ: 'triangle', laut: 0.28, start: st, bus: busMusik });
-        ton(f / 2, f / 2, lang, { typ: 'square', laut: 0.05, start: st, bus: busMusik });
+        ton(f, f, lang, { typ: 'triangle', laut: 0.28, start: st, bus: busJingle });
+        ton(f / 2, f / 2, lang, { typ: 'square', laut: 0.05, start: st, bus: busJingle });
       });
-      [[131, 0], [175, 0.38], [196, 0.62], [262, 0.94]].forEach(([f, st]) => ton(f, f, 0.3, { typ: 'sine', laut: 0.22, start: st, bus: busMusik }));
+      [[131, 0], [175, 0.38], [196, 0.62], [262, 0.94]].forEach(([f, st]) => ton(f, f, 0.3, { typ: 'sine', laut: 0.22, start: st, bus: busJingle }));
     },
     niederlage() {
       if (!bereit()) return;
-      ton(392, 370, 0.28, { typ: 'triangle', laut: 0.2, bus: busMusik });
-      ton(330, 311, 0.28, { typ: 'triangle', laut: 0.2, start: 0.3, bus: busMusik });
-      ton(262, 247, 0.5, { typ: 'triangle', laut: 0.2, start: 0.6, bus: busMusik });
+      ton(392, 370, 0.28, { typ: 'triangle', laut: 0.2, bus: busJingle });
+      ton(330, 311, 0.28, { typ: 'triangle', laut: 0.2, start: 0.3, bus: busJingle });
+      ton(262, 247, 0.5, { typ: 'triangle', laut: 0.2, start: 0.6, bus: busJingle });
     },
     start() {
       if (!bereit()) return;
-      [[392, 0], [523, 0.1], [659, 0.2], [784, 0.32]].forEach(([f, st], i) => ton(f, f, i === 3 ? 0.3 : 0.1, { typ: 'triangle', laut: 0.2, start: st, bus: busMusik }));
+      [[392, 0], [523, 0.1], [659, 0.2], [784, 0.32]].forEach(([f, st], i) => ton(f, f, i === 3 ? 0.3 : 0.1, { typ: 'triangle', laut: 0.2, start: st, bus: busJingle }));
     },
   };
 })();

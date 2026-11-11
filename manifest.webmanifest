@@ -1,7 +1,7 @@
 {
-  "name": "Nachtschicht: Hafenbande",
+  "name": "Nachtschicht: Hafenflucht",
   "short_name": "Nachtschicht",
-  "description": "Comic-Arcade: kurzer Timing-Coup am erfundenen Wertterminal, dann eine rasante Verfolgungsfahrt über die Hafenautobahn.",
+  "description": "Schneller Neon-Arcade-Racer in der Draufsicht: dichtem Verkehr ausweichen, Überholserien, Boostfelder, eigene 80er-Musik.",
   "lang": "de",
   "start_url": "./",
   "scope": "./",

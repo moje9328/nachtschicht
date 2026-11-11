@@ -13,24 +13,20 @@ async def main():
         pg = await ctx.new_page(); await pg.goto((ORDNER / 'index.html').as_uri() + '?seed=31'); await pg.wait_for_timeout(700)
         await pg.add_script_tag(content=BOT)
         async def foto(name):
+            await pg.evaluate("document.getElementById('hinweis').hidden = true; document.getElementById('meldung').textContent = ''")
             png = ZIEL / f'{name}.png'
             await pg.screenshot(path=str(png))
             subprocess.run(['sips', '-s', 'format', 'jpeg', '-s', 'formatOptions', '85', str(png), '--out', str(ZIEL / f'{name}.jpg')], check=True, capture_output=True)
             png.unlink()
-        # 1: Coup – Taschen fliegen
-        await pg.evaluate(f"{N}.starte('neonviertel', false)")
-        await pg.evaluate(f'''(() => {{ const f = () => {{ const c = {N}.coup(); if (!c) return; const k = c.c;
-            if (k.phase === 'laden' && k.sperre <= 0 && Math.abs(k.zeiger - k.zone.mitte) < 0.01) c.aktion();
-            if (k.phase === 'beute' && k.beutel.some(x => x.status === 'fliegt' && Math.abs(x.u - 0.72) < 0.03)) c.aktion();
-            requestAnimationFrame(f); }}; f(); }})()''')
-        await pg.wait_for_function(f"{N}.coup() && {N}.coup().c.phase === 'beute' && {N}.coup().c.beutel.filter(x => x.status === 'fliegt').length >= 2", polling='raf', timeout=30000)
-        await pg.evaluate("document.getElementById('hinweis').hidden = true")
-        await foto('nachtschicht-coup')
-        # 2: Fahrt mit Verkehr und Streife
-        await pg.wait_for_function(f"{N}.zustand() === 'fahrt'", timeout=30000)
-        await pg.evaluate(f'{N}.erstelleBot({{ boost: false }})')
-        await pg.wait_for_function(f"{N}.fahrt() && {N}.fahrt().w.zeit > 8 && {N}.fahrt().w.polizei.some(p => p.d > {N}.fahrt().sp.d - 7) && {N}.fahrt().w.autos.filter(a => a.d > {N}.fahrt().sp.d && a.d < {N}.fahrt().sp.d + 55).length >= 3", polling='raf', timeout=90000)
-        await pg.evaluate("document.getElementById('hinweis').hidden = true; document.getElementById('meldung').textContent = ''")
+        # 1: Neonboulevard mit dichtem Verkehr und Boostfeld
+        await pg.evaluate(f"{N}.starte('endlos', false)")
+        await pg.evaluate(f'{N}.erstelleBot({{}})')
+        await pg.wait_for_function(f"{N}.fahrt() && {N}.fahrt().sp.d > 1200 && {N}.fahrt().w.autos.filter(a => a.d > {N}.fahrt().sp.d && a.d < {N}.fahrt().sp.d + 45).length >= 4", polling='raf', timeout=90000)
+        await pg.evaluate(f"(() => {{ const F = {N}.fahrt(); F.sp.d = 4400 * 2 + 300; }})()")
+        await pg.wait_for_function(f"{N}.fahrt().w.autos.filter(a => a.d > {N}.fahrt().sp.d && a.d < {N}.fahrt().sp.d + 45).length >= 4 && {N}.fahrt().w.felder.some(f => f.status === 'offen' && f.d > {N}.fahrt().sp.d + 8 && f.d < {N}.fahrt().sp.d + 40)", polling='raf', timeout=120000)
+        await foto('nachtschicht-neon')
+        # 2: Verfolgung: Streife im Bild
+        await pg.wait_for_function(f"{N}.fahrt().w.polizei.some(p => p.d > {N}.fahrt().sp.d - 11) && {N}.fahrt().w.autos.filter(a => a.d > {N}.fahrt().sp.d && a.d < {N}.fahrt().sp.d + 45).length >= 2", polling="raf", timeout=240000)
         await foto('nachtschicht-streife')
         # 3: Startbild
         await pg.evaluate(f'{N}.setzeBot(null); {N}.zeigeStart()')

@@ -240,3 +240,10 @@ GitHub-Repo `moje9328/nachtschicht` anlegen, Pages aus main /, pushen; in `~/spi
 | 120 Läufe | höchstens 8 Läufe ohne neuen Stern (vorher 72); 42 ★, Rang „Neonpilot“, 9/14 Lackierungen – Ziele bleiben übrig |
 
 **Tests:** Logik 203/203 (neu: Tausch nach 8 Läufen, angepasster Ersatz, Ränge, Obergrenzen), Browser Chromium 119/119, WebKit 114/114.
+
+## Veröffentlicht (2026-11-12)
+
+- Repo: https://github.com/moje9328/nachtschicht (öffentlich, GitHub Pages aus main /)
+- Spiel live: https://moje9328.github.io/nachtschicht/ (Titel, sw.js, Manifest erreichbar; Headless-Chromium ohne Konsolenfehler)
+- Pixelhafen-Seite mit Karte „NACHTSCHICHT: HAFENFLUCHT“ und 3 Bildern gepusht (moje9328/spiele, 58ad6c1)
+- Neue Versionen: Änderungen committen und `git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push`; bei Änderungen am Cache-Verhalten CACHE in sw.js hochzählen.
